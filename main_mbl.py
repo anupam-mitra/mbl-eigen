@@ -63,11 +63,11 @@ if __name__ == '__main__':
 
     ## Generating Hamiltonian 
     bperp_terms = [
-         bField_samples[ix_site] * np.cos(theta_samples[ix_site]) * sigmax \
+         bField_samples[ix_site] * np.sin(theta_samples[ix_site]) * sigmax \
             for ix_site in range(systemsize)]
 
     bparallel_terms = [
-        bField_samples[ix_site] * np.sin(theta_samples[ix_site]) * sigmaz \
+        bField_samples[ix_site] * np.cos(theta_samples[ix_site]) * sigmaz \
             for ix_site in range(systemsize)]
 
     interaction_zz_terms = [
@@ -115,8 +115,7 @@ if __name__ == '__main__':
 
     ax.plot(eigenvalues, 
             eigenvector_entropies,
-            #np.std(eigenvector_entropies, axis=1) / np.sqrt(eigenvector_entropies.shape[1] - 1),
-            marker='.', ls='',
+            marker='o', fillstyle='none', ls='',
     )
 
     plotfilename = "mbl_sfim_N=%02d_anglePolarPiMin=%g_anglePolarPiMax=%g" \
