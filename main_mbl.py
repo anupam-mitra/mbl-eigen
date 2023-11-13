@@ -118,6 +118,8 @@ if __name__ == '__main__':
             marker='o', fillstyle='none', ls='',
     )
 
+    ax.axhline(np.log(2) * (systemsize >> 1), ls='dotted', color='k')
+
     plotfilename = "mbl_sfim_N=%02d_anglePolarPiMin=%g_anglePolarPiMax=%g" \
         % (systemsize, anglePolarPiMin, anglePolarPiMax) + \
         "_jIntMean=%g_jIntStd=%g_bFieldMean=%g_bFieldStd=%g_%s.pdf" \
