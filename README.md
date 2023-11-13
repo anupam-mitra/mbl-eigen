@@ -27,3 +27,15 @@ system size of `systemsize=8` and a transverse rotation angle
 ```
 python main_mbldtc.py --systemsize=8 --thetaXPi=0.76
 ```
+
+### Many-body localization
+
+To calculate and plot eigenvalues and entanglement entropies of eigenvectors of
+the Hamiltonian system size of `systemsize=12` and a polar angle between
+`anglePolarPiMin=0.0` and `anglePolarPiMax=1.0`, interaction `jInt` sampled from
+a normal distrbution with mean `jIntMean` and standard deviation `jIntStd`, 
+magnetic field `bField` sampled from a normal distribution with mean `bFieldMean`
+and standard deviation `bFieldStd, run the following.
+```
+python main_mbl.py --jIntMean=1.0 --jIntStd=1.0 --bFieldMean=1.0 --bFieldStd=1.0 --anglePolarPiMin=0.0 --anglePolarPiMax=1.0 --systemsize=12
+```

@@ -1,6 +1,7 @@
 import numpy as np
 import scipy
 import scipy.stats
+import itertools
 import qutip
 import uuid
 import argparse
@@ -94,39 +95,30 @@ if __name__ == '__main__':
                         h, N=systemsize, targets=(ix_site, ix_site+1))
 
     ## Diagonalizing Hamiltonian
-
     eigenvalues, eigenvectors = hamiltonian.eigenstates()
 
-    eigenvalues_unitary = np.exp(-1j * eigenvalues * tduration)
+    eigenvector_entropies = np.array([
+            qutip.entropy_vn(qutip.ptrace(v, [ix for ix in range(systemsize >> 1)]))
+                 for v in eigenvectors])
 
-    print("----- Eigenvalues -----")
-    print(eigenvalues)
+    print(eigenvector_entropies.shape)
 
-    print("----- Eigenphases -----")
-    print([np.angle(v) / np.pi for v in eigenvalues_unitary])
+    ## Eigenvector entropy plot for the Ising Hamiltonian
+    fig, ax = plt.subplots(1, 1, figsize=(18.0/2.54, 12.0/2.54))
 
-    ## Eigenphases plot for the Ising Hamiltonian
-    fig, ax = plt.subplots(1, 1, figsize=(12/2.54, 12/2.54))
+    ax.set_xlabel(r'Energy')
+    ax.set_ylabel(r'$\mathcal{S}_1$')
 
-    ax.set_xlabel(r'$\mathrm{Re}(\eta)$')
-    ax.set_ylabel(r'$\mathrm{Im}(\eta)$')
-
-    ax.plot(np.real(eigenvalues_unitary), np.imag(eigenvalues_unitary),
+    ax.plot(eigenvalues, 
+            eigenvector_entropies,
+            #np.std(eigenvector_entropies, axis=1) / np.sqrt(eigenvector_entropies.shape[1] - 1),
             marker='.', ls='',
-            label=r'$\eta$')
+    )
 
-    ax.plot(np.real(eigenvalues_unitary), -np.imag(eigenvalues_unitary),
-            marker='o', fillstyle='none', ls='',
-            label=r'$\eta^*$')
+    plotfilename = "mbl_sfim_N=%02d_anglePolarPiMin=%g_anglePolarPiMax=%g" \
+        % (systemsize, anglePolarPiMin, anglePolarPiMax) + \
+        "_jIntMean=%g_jIntStd=%g_bFieldMean=%g_bFieldStd=%g_%s.pdf" \
+        % (jIntMean, jIntStd, bFieldMean, bFieldStd, uuid.uuid4())
 
-    ax.set_xlim(-1.1, 1.1)
-    ax.set_ylim(-1.1, 1.1)
-
-    ax.legend(loc='center')
-
-    plt.tight_layout()
-    plt.savefig(
-        "mbl_sfim_N=%02d" % (systemsize,) + \
-        "_tduration=%g_jIntMean=%g_jIntStd=%g_bFieldMean=%g_bFieldStd=%g_%s.pdf" \
-        % (tduration, jIntMean, jIntStd, bFieldMean, bFieldStd, uuid.uuid4()))
+    fig.savefig(plotfilename)
     plt.close()
