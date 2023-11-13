@@ -59,7 +59,7 @@ if __name__ == '__main__':
     theta_samples = scipy.stats.uniform.rvs(
         size=systemsize,
         loc=anglePolarPiMin * np.pi,
-        scale=anglePolarPiMax * np.pi,)
+        scale=(anglePolarPiMax - anglePolarPiMin)* np.pi,)
 
     ## Generating Hamiltonian 
     bperp_terms = [
@@ -76,6 +76,10 @@ if __name__ == '__main__':
 
     hamiltonian = 0.0 * qutip.qip.operations.expand_operator(
                         sigma0, N=systemsize, targets=(0,))
+
+    print("bField_samples = %s" % bField_samples)
+    print("theta_samples = %s" % theta_samples)
+    print("jInt_Samples = %s" % jInt_samples)
     
     for ix_site in range(systemsize):
         h = bperp_terms[ix_site]
