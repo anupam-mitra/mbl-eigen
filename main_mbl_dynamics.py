@@ -79,7 +79,7 @@ if __name__ == '__main__':
 
     print("bField_samples = %s" % bField_samples)
     print("theta_samples = %s" % theta_samples)
-    print("jInt_Samples = %s" % jInt_samples)
+    print("jInt_samples = %s" % jInt_samples)
     
     for ix_site in range(systemsize):
         h = bperp_terms[ix_site]
