@@ -9,7 +9,7 @@
 
 ## Examples
 
-Quantum many-body scars (QMBS)
+### Quantum many-body scars (QMBS)
 
 To calculate and plot eigenvalues of the time evolution operator at
 time `tduration=1.0`, for a system size of `systemsize=6` with
@@ -19,7 +19,7 @@ following.
 python main_qmbs.py --systemsize=6 --tduration=1.0 --Delta=0.1
 ```
 
-Many-body localized discrete time crystal (MBL-DTC)
+### Many-body localized discrete time crystal (MBL-DTC)
 
 To calculate and plot eigenvalues of the Floquet operator for a 
 system size of `systemsize=8` and a transverse rotation angle
