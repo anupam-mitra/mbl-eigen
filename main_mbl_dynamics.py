@@ -108,7 +108,7 @@ if __name__ == '__main__':
     amplitude_eigenvectors = [(v.dag() * ket_initial).tr() for v in eigenvectors]
     print(amplitude_eigenvectors)
 
-    times_array = np.arange(0.0, 8.125, 0.125)
+    times_array = np.arange(0.0, 10.0625, 0.0625)
 
     amplitude_return_array = np.empty_like(times_array, dtype=complex)
 
@@ -125,7 +125,9 @@ if __name__ == '__main__':
     ## Eigenvector entropy plot for the Ising Hamiltonian
     fig, ax = plt.subplots(1, 1, figsize=(18.0/2.54, 12.0/2.54))
 
-    ax.plot(times_array, np.abs(amplitude_return_array)**2)
+    ax.plot(times_array, -np.log(np.abs(amplitude_return_array)**2) / systemsize)
+    ax.set_ylabel(r"$\lambda(t)$")
+    ax.set_xlabel(r"$B_{\mathrm{mean}} t$")
 
     plotfilename = "mbl_sfim_dynamics_N=%02d_anglePolarPiMin=%g_anglePolarPiMax=%g" \
         % (systemsize, anglePolarPiMin, anglePolarPiMax) + \
@@ -135,4 +137,3 @@ if __name__ == '__main__':
     fig.savefig(plotfilename)
     plt.close()
 
-    plt.savefig(".pdf")
