@@ -115,7 +115,8 @@ if __name__ == '__main__':
 
     ax.plot(eigenvalues, 
             eigenvector_entropies,
-            marker='o', fillstyle='none', ls='',
+            marker='o', markeredgecolor='k', markerfacecolor='blue',
+            ls='',
     )
 
     ax.axhline(np.log(2) * (systemsize >> 1), ls='dotted', color='k')
