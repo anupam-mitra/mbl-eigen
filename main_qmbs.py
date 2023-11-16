@@ -3,6 +3,11 @@ import qutip
 import uuid
 import argparse
 import matplotlib.pyplot as plt
+import logging
+
+import level_repulsion
+
+logging.basicConfig(level=logging.DEBUG)
 
 """
 Generating the PXP Hamiltonian from Rydberg blockade
@@ -121,11 +126,21 @@ if __name__ == '__main__':
     print(eigenvalues)
 
     print("----- Eigenphases -----")
+    eigenphases = np.sort([np.angle(v) / np.pi for v in eigenvalues_unitary])
+    eigenphases_pxp = np.sort([np.angle(v) / np.pi for v in eigenvalues_pxp_unitary])
+
     print("Eigenphases(U) = ", [np.angle(v) / np.pi for v in eigenvalues_unitary])
     print("Eigenphases(U_PXP) = ", [np.angle(v) / np.pi for v in eigenvalues_pxp_unitary])
     print("SortedEigenphases(U_PXP) = %s" % (np.sort([np.angle(v) / np.pi for v in eigenvalues_pxp_unitary]),))
     print("SortedEigenphases(U) = %s" % (np.sort([np.angle(v) / np.pi for v in eigenvalues_unitary]),))
 
+    ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
+            eigenphases, fraction_cutoff=0.0, use_spacing=False)
+
+    ratio_pxp = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
+            eigenphases_pxp, fraction_cutoff=0.0, use_spacing=False)
+
+    print("ratio = %g, ratio_pxp = %g" % (ratio, ratio_pxp))
     ## Eigenphases plot for the Ising Hamiltonian
     fig, ax = plt.subplots(1, 1, figsize=(12/2.54, 12/2.54))
 
