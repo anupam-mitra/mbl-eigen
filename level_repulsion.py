@@ -4,7 +4,8 @@ import logging
 ################################################################################
 def calc_mean_adjacent_level_spacing_ratio(
         eigenvalues:np.ndarray,
-        fraction_cutoff=0.02):
+        fraction_cutoff=0.02,
+        use_spacing=True):
     """
     Calculates the mean adjacent level spacing ratio
 
@@ -31,8 +32,12 @@ def calc_mean_adjacent_level_spacing_ratio(
     logging.debug("ix_start = %d, ix_end = %g" % (ix_start, ix_end))
     eigenvalues_bulk = eigenvalues[ix_start : ix_end]
 
-    spacings:np.ndarray = np.diff(eigenvalues_bulk)
-    logging.debug("spacings = %s" % spacings)
+    if use_spacing:
+        spacings:np.ndarray = np.diff(eigenvalues_bulk)
+        logging.debug("spacings = %s" % spacings)
+    else:
+        spacings:np.nd_array = eigenvalues_bulk[np.abs(eigenvalues_bulk) > 1e-12]
+        logging.debug("spacings = %s" % spacings)
     
     spacing_max:np.ndarray = \
         np.asarray([max(spacings[n], spacings[n+1]) \
