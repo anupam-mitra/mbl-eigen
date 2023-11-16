@@ -76,14 +76,14 @@ if __name__ == '__main__':
         u_floquet = g * u_floquet
 
     ## Diagonalizing Floquet operator
-
     eigenvalues, eigenvectors = u_floquet.eigenstates()
 
     print("----- Eigenvalues -----")
-    print(eigenvalues)
+    print("Eigenvalues = %s" % (eigenvalues,))
 
     print("----- Eigenphases -----")
-    print([np.angle(v) / np.pi for v in eigenvalues])
+    print("Eigenphases(U) = %s" % ([np.angle(v) / np.pi for v in eigenvalues],))
+    print("Eigenphases(U^2) = %s" % (np.sort([np.angle(v**2) / np.pi for v in eigenvalues]),)) 
 
     fig, ax = plt.subplots(1, 1, figsize=(12/2.54, 12/2.54))
 
