@@ -53,14 +53,14 @@ if __name__ == '__main__':
             for ix_site in range(systemsize-1)]
 
     pxp_terms = [ 
-        Omega * qutip.tensor(sigmax, projector_g)
+        0.5 * Omega * qutip.tensor(sigmax, projector_g)
     ] + \
     [
-        Omega * qutip.tensor(projector_g, sigmax, projector_g)
+        0.5 * Omega * qutip.tensor(projector_g, sigmax, projector_g)
             for ix_site in range(systemsize - 2)
     ] + \
     [
-        Omega * qutip.tensor(projector_g, sigmax)
+        0.5 * Omega * qutip.tensor(projector_g, sigmax)
     ]
 
     hamiltonian = 0.0 * qutip.qip.operations.expand_operator(\
@@ -121,8 +121,10 @@ if __name__ == '__main__':
     print(eigenvalues)
 
     print("----- Eigenphases -----")
-    print("Eigenphases(U^2) = ", [np.angle(v) / np.pi for v in eigenvalues_unitary])
-    print("Eigenphases(U^2) = %s" % (np.sort([np.angle(v**2) / np.pi for v in eigenvalues_pxp_unitary]),))
+    print("Eigenphases(U) = ", [np.angle(v) / np.pi for v in eigenvalues_unitary])
+    print("Eigenphases(U_PXP) = ", [np.angle(v) / np.pi for v in eigenvalues_pxp_unitary])
+    print("SortedEigenphases(U_PXP) = %s" % (np.sort([np.angle(v) / np.pi for v in eigenvalues_pxp_unitary]),))
+    print("SortedEigenphases(U) = %s" % (np.sort([np.angle(v) / np.pi for v in eigenvalues_unitary]),))
 
     ## Eigenphases plot for the Ising Hamiltonian
     fig, ax = plt.subplots(1, 1, figsize=(12/2.54, 12/2.54))
