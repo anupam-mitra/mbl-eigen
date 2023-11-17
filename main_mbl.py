@@ -117,6 +117,16 @@ if __name__ == '__main__':
 
     logging.info("ratio = %g" % (ratio,))
 
+    ## Eigenphases
+    eigenvalues_unitary = np.exp(-1j * eigenvalues * tduration)
+
+    eigenphases = np.sort([(np.angle(v) % 2.0 * np.pi) for v in eigenvalues_unitary])
+
+    ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
+            eigenphases, fraction_cutoff=0.0, use_spacing=False)
+
+    logging.info("ratio = %g" % (ratio))
+
     ## Plotting
     ## Eigenvector entropy plot for the Ising Hamiltonian
     fig, ax = plt.subplots(1, 1, figsize=(18.0/2.54, 12.0/2.54))
