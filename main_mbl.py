@@ -123,7 +123,7 @@ if __name__ == '__main__':
     eigenphases = np.sort([(np.angle(v) % 2.0 * np.pi) for v in eigenvalues_unitary])
 
     ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
-            eigenphases, fraction_cutoff=0.0, use_spacing=False)
+            eigenphases, fraction_cutoff=0.0, use_spacing=True)
 
     logging.info("ratio = %g" % (ratio))
 
