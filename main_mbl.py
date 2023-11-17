@@ -6,6 +6,11 @@ import qutip
 import uuid
 import argparse
 import matplotlib.pyplot as plt
+import logging
+
+import level_repulsion
+
+logging.basicConfig(level=logging.INFO)
 
 """
 Generating the PXP Hamiltonian from Rydberg blockade
@@ -77,9 +82,9 @@ if __name__ == '__main__':
     hamiltonian = 0.0 * qutip.qip.operations.expand_operator(
                         sigma0, N=systemsize, targets=(0,))
 
-    print("bField_samples = %s" % bField_samples)
-    print("theta_samples = %s" % theta_samples)
-    print("jInt_Samples = %s" % jInt_samples)
+    logging.info("bField_samples = %s" % bField_samples)
+    logging.info("theta_samples = %s" % theta_samples)
+    logging.info("jInt_Samples = %s" % jInt_samples)
     
     for ix_site in range(systemsize):
         h = bperp_terms[ix_site]
@@ -105,8 +110,14 @@ if __name__ == '__main__':
             qutip.entropy_vn(qutip.ptrace(v, [ix for ix in range(systemsize >> 1)]))
                  for v in eigenvectors])
 
-    print(eigenvector_entropies.shape)
+    logging.info(eigenvector_entropies.shape)
 
+    ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
+            eigenvalues, fraction_cutoff=0.0, use_spacing=True)
+
+    logging.info("ratio = %g, ratio_pxp = %g" % (ratio,))
+
+    ## Plotting
     ## Eigenvector entropy plot for the Ising Hamiltonian
     fig, ax = plt.subplots(1, 1, figsize=(18.0/2.54, 12.0/2.54))
 
