@@ -88,14 +88,14 @@ if __name__ == '__main__':
 
     logging.info("----- Eigenphases -----")
     eigenphases = np.sort(\
-            [(np.angle(v) % 2.0 * np.pi) for v in eigenvalues])
+            [np.angle(v) % (2*np.pi) for v in eigenvalues])
 
     logging.info("Eigenphases(U) = %s" % (eigenphases,))
     logging.info("Eigenphases(U^2) = %s" % \
             (np.sort((eigenphases * 2) % (2*np.pi)),)) 
 
     ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
-            (eigenphases * 2.0) % (2*np.pi), 
+            (eigenphases ) % (2*np.pi), 
             fraction_cutoff=0.0, use_spacing=True)
 
     logging.info("ratio = %g" % (ratio,))
