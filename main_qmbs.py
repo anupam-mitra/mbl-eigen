@@ -7,7 +7,7 @@ import logging
 
 import level_repulsion
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 """
 Generating the PXP Hamiltonian from Rydberg blockade
@@ -113,7 +113,6 @@ if __name__ == '__main__':
                         h, N=systemsize, targets=(ix_site,))
 
     ## Diagonalizing Hamiltonian
-
     eigenvalues, eigenvectors = hamiltonian.eigenstates()
 
     eigenvalues_pxp, eigenvectors_pxp = hamiltonian_pxp.eigenstates()
@@ -122,17 +121,17 @@ if __name__ == '__main__':
 
     eigenvalues_pxp_unitary = np.exp(-1j * eigenvalues_pxp * tduration)
 
-    print("----- Eigenvalues -----")
-    print(eigenvalues)
+    logging.info("----- Eigenvalues -----")
+    logging.info(eigenvalues)
 
-    print("----- Eigenphases -----")
-    eigenphases = np.sort([np.angle(v) / np.pi for v in eigenvalues_unitary])
-    eigenphases_pxp = np.sort([np.angle(v) / np.pi for v in eigenvalues_pxp_unitary])
+    logging.info("----- Eigenphases -----")
+    eigenphases = np.sort([(np.angle(v) % 2.0 * np.pi) for v in eigenvalues_unitary])
+    eigenphases_pxp = np.sort([(np.angle(v) % 2.0 * np.pi)for v in eigenvalues_pxp_unitary])
 
-    print("Eigenphases(U) = ", [np.angle(v) / np.pi for v in eigenvalues_unitary])
-    print("Eigenphases(U_PXP) = ", [np.angle(v) / np.pi for v in eigenvalues_pxp_unitary])
-    print("SortedEigenphases(U_PXP) = %s" % (np.sort([np.angle(v) / np.pi for v in eigenvalues_pxp_unitary]),))
-    print("SortedEigenphases(U) = %s" % (np.sort([np.angle(v) / np.pi for v in eigenvalues_unitary]),))
+    logging.info("Eigenphases(U) = ", [np.angle(v) / np.pi for v in eigenvalues_unitary])
+    logging.info("Eigenphases(U_PXP) = ", [np.angle(v) / np.pi for v in eigenvalues_pxp_unitary])
+    logging.info("SortedEigenphases(U_PXP) = %s" % (np.sort([np.angle(v) / np.pi for v in eigenvalues_pxp_unitary]),))
+    logging.info("SortedEigenphases(U) = %s" % (np.sort([np.angle(v) / np.pi for v in eigenvalues_unitary]),))
 
     ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
             eigenphases, fraction_cutoff=0.0, use_spacing=False)
@@ -140,7 +139,17 @@ if __name__ == '__main__':
     ratio_pxp = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
             eigenphases_pxp, fraction_cutoff=0.0, use_spacing=False)
 
-    print("ratio = %g, ratio_pxp = %g" % (ratio, ratio_pxp))
+    logging.info("ratio = %g, ratio_pxp = %g" % (ratio, ratio_pxp))
+
+    ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
+            eigenvalues, fraction_cutoff=0.0, use_spacing=True)
+
+    ratio_pxp = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
+            eigenvalues_pxp, fraction_cutoff=0.0, use_spacing=True)
+
+    logging.info("ratio = %g, ratio_pxp = %g" % (ratio, ratio_pxp))
+
+    ## Plotting
     ## Eigenphases plot for the Ising Hamiltonian
     fig, ax = plt.subplots(1, 1, figsize=(12/2.54, 12/2.54))
 
