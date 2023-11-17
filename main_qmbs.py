@@ -134,10 +134,10 @@ if __name__ == '__main__':
     logging.info("SortedEigenphases(U) = %s" % (np.sort([np.angle(v) / np.pi for v in eigenvalues_unitary]),))
 
     ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
-            eigenphases, fraction_cutoff=0.0, use_spacing=False)
+            eigenphases, fraction_cutoff=0.0, use_spacing=True)
 
     ratio_pxp = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
-            eigenphases_pxp, fraction_cutoff=0.0, use_spacing=False)
+            eigenphases_pxp, fraction_cutoff=0.0, use_spacing=True)
 
     logging.info("ratio = %g, ratio_pxp = %g" % (ratio, ratio_pxp))
 
