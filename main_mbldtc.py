@@ -3,6 +3,11 @@ import qutip
 import uuid
 import argparse
 import matplotlib.pyplot as plt
+import logging
+
+import level_repulsion
+
+logging.basicConfig(level=logging.INFO)
 
 """
 Generating the Floquet operator for MBL-DTC,
@@ -78,13 +83,24 @@ if __name__ == '__main__':
     ## Diagonalizing Floquet operator
     eigenvalues, eigenvectors = u_floquet.eigenstates()
 
-    print("----- Eigenvalues -----")
-    print("Eigenvalues = %s" % (eigenvalues,))
+    logging.info("----- Eigenvalues -----")
+    logging.info("Eigenvalues = %s" % (eigenvalues,))
 
-    print("----- Eigenphases -----")
-    print("Eigenphases(U) = %s" % ([np.angle(v) / np.pi for v in eigenvalues],))
-    print("Eigenphases(U^2) = %s" % (np.sort([np.angle(v**2) / np.pi for v in eigenvalues]),)) 
+    logging.info("----- Eigenphases -----")
+    eigenphases = np.sort(\
+            [(np.angle(v) % 2.0 * np.pi) for v in eigenvalues])
 
+    logging.info("Eigenphases(U) = %s" % (eigenphases,))
+    logging.info("Eigenphases(U^2) = %s" % \
+            (np.sort((eigenphases * 2) % (2*np.pi)),)) 
+
+    ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
+            (eigenphases * 2.0) % (2*np.pi), 
+            fraction_cutoff=0.0, use_spacing=False)
+
+    logging.info("ratio = %g" % (ratio,))
+ 
+    ## Plotting
     fig, ax = plt.subplots(1, 1, figsize=(12/2.54, 12/2.54))
 
     ax.set_xlabel(r'$\mathrm{Re}(\eta)$')
