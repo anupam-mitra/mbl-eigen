@@ -96,7 +96,7 @@ if __name__ == '__main__':
 
     ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
             (eigenphases * 2.0) % (2*np.pi), 
-            fraction_cutoff=0.0, use_spacing=False)
+            fraction_cutoff=0.0, use_spacing=True)
 
     logging.info("ratio = %g" % (ratio,))
  
