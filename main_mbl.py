@@ -115,7 +115,7 @@ if __name__ == '__main__':
     ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
             eigenvalues, fraction_cutoff=0.0, use_spacing=True)
 
-    logging.info("ratio = %g, ratio_pxp = %g" % (ratio,))
+    logging.info("ratio = %g" % (ratio,))
 
     ## Plotting
     ## Eigenvector entropy plot for the Ising Hamiltonian
