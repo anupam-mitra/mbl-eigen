@@ -106,17 +106,17 @@ if __name__ == '__main__':
     sigmax_array = np.asarray(
         [qutip.qip.operations.expand_operator(
             sigmax, N=systemsize, targets=(ix_site,))
-            for ix_site in range(systemsize] )
+            for ix_site in range(systemsize)] )
 
     sigmay_array = np.asarray(
         [qutip.qip.operations.expand_operator(
             sigmay, N=systemsize, targets=(ix_site,))
-            for ix_site in range(systemsize] )
+            for ix_site in range(systemsize)] )
 
     sigmaz_array = np.asarray(
         [qutip.qip.operations.expand_operator(
             sigmaz, N=systemsize, targets=(ix_site,))
-            for ix_site in range(systemsize] )
+            for ix_site in range(systemsize)] )
 
     sigmaz_hamiltonian_eigenbasis_array = np.asarray(
         [basis_changer_qobj.dag() * z * basis_changer_qobj
