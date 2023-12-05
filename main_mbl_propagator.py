@@ -145,8 +145,39 @@ if __name__ == '__main__':
     logging.info("sigmaz: \n %s \n" % (sigmaz_hamiltonian_eigenbasis_array,))
 
     ## Time evolution
-    times_array = np.arange(0.0, 10.0625, 0.0625)
+    times_array:np.ndarray = np.arange(0.0, 10.0625, 0.0625)
+
+    eigenphases:np.ndarray = np.empty((len(times_array), len(energies))
 
     for ix_time, t in enumerate(times_array):
-        pass
-  
+        eigenphases[ix_time, :] = np.exp(-1j * t * energies)
+
+    sigmax_time_evolved_array = np.empty((systemsize, len(times_array)), dtype=object)
+    sigmay_time_evolved_array = np.empty((systemsize, len(times_array)), dtype=object)
+    sigmaz_time_evolved_array = np.empty((systemsize, len(times_array)), dtype=object)
+
+    for ix_time, t in enumerate(times_array):
+        propagator = \
+                basis_changer_qobj * \
+                qutip.qobj.Qobj(
+                    np.diag(eigenphases[ix_time, :]),
+                    dims=basis_changer_qobj.dims)
+    
+        for ix_site in range(systemsize):
+            x = sigmax_hamiltonian_eigenbasis_array[ix_site]
+            y = sigmay_hamiltonian_eigenbasis_array[ix_site]
+            z = sigmaz_hamiltonian_eigenbasis_array[ix_site]
+
+            sigmax_time_evolved_array[ix_site, ix_time] = \
+                    propagator * x * propagator.dag()
+
+            sigmay_time_evolved_array[ix_site, ix_time] = \
+                    propagator * k * propagator.dag()
+
+            sigmaz_time_evolved_array[ix_site, ix_time] = \
+                    propagator * z * propagator.dag()
+
+    logging.info("sigmax: \n %s \n" % (sigmax_time_evolved_array[-1],))
+    logging.info("sigmay: \n %s \n" % (sigmay_time_evolved_array[-1],))
+    logging.info("sigmaz: \n %s \n" % (sigmaz_time_evolved_array[-1],))
+
