@@ -100,6 +100,11 @@ if __name__ == '__main__':
                         h, N=systemsize, targets=(ix_site, ix_site+1))
 
     ## Diagonalizing Hamiltonian
+    hamiltonian_ndarray = hamiltonian.full()
+    energies, basis_changer = np.linalg.eigh(hamiltonian_ndarray)
+
+    basis_changer_qobj = qutip.qobj.Qobj(basis_changer, dims=hamiltonian.dims)
+
     eigenvalues, eigenvectors = hamiltonian.eigenstates()
 
     ## Operators of interest
