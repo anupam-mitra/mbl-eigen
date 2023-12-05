@@ -172,7 +172,7 @@ if __name__ == '__main__':
                     propagator * x * propagator.dag()
 
             sigmay_time_evolved_array[ix_site, ix_time] = \
-                    propagator * k * propagator.dag()
+                    propagator * y * propagator.dag()
 
             sigmaz_time_evolved_array[ix_site, ix_time] = \
                     propagator * z * propagator.dag()
