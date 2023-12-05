@@ -8,7 +8,6 @@ import argparse
 import logging
 import matplotlib.pyplot as plt
 
-
 """
 Generating the propagator for a many-body localized system
 """
@@ -104,38 +103,8 @@ if __name__ == '__main__':
     eigenvalues, eigenvectors = hamiltonian.eigenstates()
 
     ## Time evolution
-    ket_initial = qutip.ket('1' * systemsize)
-    logging.info(ket_initial)
-
-    amplitude_eigenvectors = [(v.dag() * ket_initial).tr() for v in eigenvectors]
-    logging.info(amplitude_eigenvectors)
-
     times_array = np.arange(0.0, 10.0625, 0.0625)
 
-    amplitude_return_array = np.empty_like(times_array, dtype=complex)
-
     for ix_time, t in enumerate(times_array):
-        a = np.sum([
-            np.exp(-1j * t * eigenvalues[k]) * \
-             np.abs(amplitude_eigenvectors[k])**2
-            for k in range(len(eigenvalues))])
-
-        amplitude_return_array[ix_time] = a
-
-    logging.info(amplitude_return_array)
+        pass
   
-    ## Eigenvector entropy plot for the Ising Hamiltonian
-    fig, ax = plt.subplots(1, 1, figsize=(18.0/2.54, 12.0/2.54))
-
-    ax.plot(times_array, -np.log(np.abs(amplitude_return_array)**2) / systemsize)
-    ax.set_ylabel(r"$\lambda(t)$")
-    ax.set_xlabel(r"$B_{\mathrm{mean}} t$")
-
-    plotfilename = "mbl_sfim_dynamics_N=%02d_anglePolarPiMin=%g_anglePolarPiMax=%g" \
-        % (systemsize, anglePolarPiMin, anglePolarPiMax) + \
-        "_jIntMean=%g_jIntStd=%g_bFieldMean=%g_bFieldStd=%g_%s.pdf" \
-        % (jIntMean, jIntStd, bFieldMean, bFieldStd, uuid.uuid4())
-
-    fig.savefig(plotfilename)
-    plt.close()
-
