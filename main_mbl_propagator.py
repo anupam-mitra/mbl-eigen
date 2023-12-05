@@ -8,6 +8,9 @@ import argparse
 import logging
 import matplotlib.pyplot as plt
 
+
+logging.basicConfig(level=logging.INFO)
+
 """
 Generating the propagator for a many-body localized system
 """
@@ -129,7 +132,6 @@ if __name__ == '__main__':
     )
 
     logging.info(sigmaz_hamiltonian_eigenbasis_array[0])
-
 
     ## Time evolution
     times_array = np.arange(0.0, 10.0625, 0.0625)
