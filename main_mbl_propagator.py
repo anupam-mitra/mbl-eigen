@@ -112,17 +112,17 @@ if __name__ == '__main__':
     ## Operators of interest
     sigmax_array = np.asarray(
         [qutip.qip.operations.expand_operator(
-            sigmax, N=systemsize, targets=(ix_site,))
+            sigmax / np.sqrt(1 << systemsize), N=systemsize, targets=(ix_site,))
             for ix_site in range(systemsize)], dtype=object)
 
     sigmay_array = np.asarray(
         [qutip.qip.operations.expand_operator(
-            sigmay, N=systemsize, targets=(ix_site,))
+            sigmay / np.sqrt(1 << systemsize), N=systemsize, targets=(ix_site,))
             for ix_site in range(systemsize)], dtype=object)
 
     sigmaz_array = np.asarray(
         [qutip.qip.operations.expand_operator(
-            sigmaz, N=systemsize, targets=(ix_site,))
+            sigmaz / np.sqrt(1 << systemsize), N=systemsize, targets=(ix_site,))
             for ix_site in range(systemsize)], dtype=object)
 
     logging.info("sigmax: \n %s \n" % (sigmax_array,))
@@ -215,5 +215,5 @@ if __name__ == '__main__':
                 overlap = (op_initial * op_final).tr()
                 overlap_matrix[2 * systemsize + ix_site_initial, 2 * systemsize + ix_site_final, ix_time] = overlap
 
-    logging.info("overlap_matrix = \n%s" % (np.round(overlap_matrix[:, :, -1], 41),))
+    logging.info("overlap_matrix = \n%s" % (np.round(overlap_matrix[:, :, -1], 4),))
 
