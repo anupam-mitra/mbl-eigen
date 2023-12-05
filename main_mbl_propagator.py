@@ -127,12 +127,12 @@ if __name__ == '__main__':
 
     sigmax_hamiltonian_eigenbasis_array = np.asarray(
         [basis_changer_qobj.dag() * x * basis_changer_qobj
-            for x in sigmaz_array]
+            for x in sigmax_array]
     )
 
     sigmay_hamiltonian_eigenbasis_array = np.asarray(
         [basis_changer_qobj.dag() * y * basis_changer_qobj
-            for y in sigmaz_array]
+            for y in sigmay_array]
     )
 
     sigmaz_hamiltonian_eigenbasis_array = np.asarray(
@@ -140,9 +140,9 @@ if __name__ == '__main__':
             for z in sigmaz_array]
     )
 
-    logging.info("sigmax: \n", sigmax_hamiltonian_eigenbasis_array)
-    logging.info("sigmay: \n", sigmay_hamiltonian_eigenbasis_array)
-    logging.info("sigmaz: \n", sigmaz_hamiltonian_eigenbasis_array)
+    logging.info("sigmax: \n %s \n" % (sigmax_hamiltonian_eigenbasis_array,))
+    logging.info("sigmay: \n %s \n" % (sigmay_hamiltonian_eigenbasis_array,))
+    logging.info("sigmaz: \n %s \n" % (sigmaz_hamiltonian_eigenbasis_array,))
 
     ## Time evolution
     times_array = np.arange(0.0, 10.0625, 0.0625)
