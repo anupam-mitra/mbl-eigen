@@ -107,38 +107,39 @@ if __name__ == '__main__':
 
     basis_changer_qobj = qutip.qobj.Qobj(basis_changer, dims=hamiltonian.dims)
 
-    eigenvalues, eigenvectors = hamiltonian.eigenstates()
+    logging.info("basis_changer_obj = %s" % (basis_changer_qobj,))
 
     ## Operators of interest
     sigmax_array = np.asarray(
         [qutip.qip.operations.expand_operator(
             sigmax, N=systemsize, targets=(ix_site,))
-            for ix_site in range(systemsize)] )
+            for ix_site in range(systemsize)], dtype=object)
 
     sigmay_array = np.asarray(
         [qutip.qip.operations.expand_operator(
             sigmay, N=systemsize, targets=(ix_site,))
-            for ix_site in range(systemsize)] )
+            for ix_site in range(systemsize)], dtype=object)
 
     sigmaz_array = np.asarray(
         [qutip.qip.operations.expand_operator(
             sigmaz, N=systemsize, targets=(ix_site,))
-            for ix_site in range(systemsize)] )
+            for ix_site in range(systemsize)], dtype=object)
 
-    sigmax_hamiltonian_eigenbasis_array = np.asarray(
-        [basis_changer_qobj.dag() * x * basis_changer_qobj
+    logging.info("sigmax: \n %s \n" % (sigmax_array,))
+    logging.info("sigmay: \n %s \n" % (sigmay_array,))
+    logging.info("sigmaz: \n %s \n" % (sigmaz_array,))
+
+    sigmax_hamiltonian_eigenbasis_array = \
+        [basis_changer_qobj.dag() * qutip.qobj.Qobj(x, dims=hamiltonian.dims) * basis_changer_qobj
             for x in sigmax_array]
-    )
 
-    sigmay_hamiltonian_eigenbasis_array = np.asarray(
-        [basis_changer_qobj.dag() * y * basis_changer_qobj
+    sigmay_hamiltonian_eigenbasis_array = \
+        [basis_changer_qobj.dag() * qutip.qobj.Qobj(y, dims=hamiltonian.dims) * basis_changer_qobj
             for y in sigmay_array]
-    )
 
-    sigmaz_hamiltonian_eigenbasis_array = np.asarray(
-        [basis_changer_qobj.dag() * z * basis_changer_qobj
+    sigmaz_hamiltonian_eigenbasis_array = \
+        [basis_changer_qobj.dag() * qutip.qobj.Qobj(z, dims=hamiltonian.dims) * basis_changer_qobj
             for z in sigmaz_array]
-    )
 
     logging.info("sigmax: \n %s \n" % (sigmax_hamiltonian_eigenbasis_array,))
     logging.info("sigmay: \n %s \n" % (sigmay_hamiltonian_eigenbasis_array,))
@@ -162,11 +163,17 @@ if __name__ == '__main__':
                 qutip.qobj.Qobj(
                     np.diag(eigenphases[ix_time, :]),
                     dims=basis_changer_qobj.dims)
+
+        logging.info("propagator type = %s" % (type(propagator),))
     
         for ix_site in range(systemsize):
             x = sigmax_hamiltonian_eigenbasis_array[ix_site]
             y = sigmay_hamiltonian_eigenbasis_array[ix_site]
             z = sigmaz_hamiltonian_eigenbasis_array[ix_site]
+                
+            logging.info("x type = %s" % type(x))
+            logging.info("y type = %s" % type(y))
+            logging.info("z type = %s" % type(z))
 
             sigmax_time_evolved_array[ix_site, ix_time] = \
                     propagator * x * propagator.dag()
@@ -180,4 +187,33 @@ if __name__ == '__main__':
     logging.info("sigmax time evolved: \n %s \n" % (sigmax_time_evolved_array[0, -1],))
     logging.info("sigmay time evolved: \n %s \n" % (sigmay_time_evolved_array[0, -1],))
     logging.info("sigmaz time evolved: \n %s \n" % (sigmaz_time_evolved_array[0, -1],))
+
+    overlap_matrix = np.empty((3*systemsize, 3*systemsize, len(times_array)), dtype=complex)
+
+    for ix_time, t in enumerate(times_array):
+        for ix_site_initial in range(systemsize):
+            for ix_site_final in range(systemsize):
+
+                op_initial = sigmax_array[ix_site_initial]
+                op_final = sigmax_time_evolved_array[ix_site_final, ix_time]
+
+                logging.info("op_initial type = %s" % type(op_initial))
+                logging.info("op_final type = %s" % type(op_final))
+
+                overlap = (op_initial * op_final).tr()
+                overlap_matrix[ix_site_initial, ix_site_final, ix_time] = overlap
+
+                op_initial = sigmay_array[ix_site_initial]
+                op_final = sigmay_time_evolved_array[ix_site_final, ix_time]
+
+                overlap = (op_initial * op_final).tr()
+                overlap_matrix[systemsize + ix_site_initial, systemsize + ix_site_final, ix_time] = overlap
+
+                op_initial = sigmaz_array[ix_site_initial]
+                op_final = sigmaz_time_evolved_array[ix_site_final, ix_time]
+
+                overlap = (op_initial * op_final).tr()
+                overlap_matrix[2 * systemsize + ix_site_initial, 2 * systemsize + ix_site_final, ix_time] = overlap
+
+    logging.info("overlap_matrix = %s" % (overlap_matrix[:, :, -1],))
 
