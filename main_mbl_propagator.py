@@ -147,7 +147,7 @@ if __name__ == '__main__':
     ## Time evolution
     times_array:np.ndarray = np.arange(0.0, 10.0625, 0.0625)
 
-    eigenphases:np.ndarray = np.empty((len(times_array), len(energies))
+    eigenphases:np.ndarray = np.empty((len(times_array), len(energies)))
 
     for ix_time, t in enumerate(times_array):
         eigenphases[ix_time, :] = np.exp(-1j * t * energies)
