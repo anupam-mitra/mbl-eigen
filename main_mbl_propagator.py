@@ -145,9 +145,9 @@ if __name__ == '__main__':
     logging.info("sigmaz: \n %s \n" % (sigmaz_hamiltonian_eigenbasis_array,))
 
     ## Time evolution
-    times_array:np.ndarray = np.arange(0.0, 10.0625, 0.0625)
+    times_array:np.ndarray = np.arange(0.0, 1.0625, 0.0625)
 
-    eigenphases:np.ndarray = np.empty((len(times_array), len(energies)))
+    eigenphases:np.ndarray = np.empty((len(times_array), len(energies)), dtype=complex)
 
     for ix_time, t in enumerate(times_array):
         eigenphases[ix_time, :] = np.exp(-1j * t * energies)
@@ -177,7 +177,7 @@ if __name__ == '__main__':
             sigmaz_time_evolved_array[ix_site, ix_time] = \
                     propagator * z * propagator.dag()
 
-    logging.info("sigmax: \n %s \n" % (sigmax_time_evolved_array[-1],))
-    logging.info("sigmay: \n %s \n" % (sigmay_time_evolved_array[-1],))
-    logging.info("sigmaz: \n %s \n" % (sigmaz_time_evolved_array[-1],))
+    logging.info("sigmax time evolved: \n %s \n" % (sigmax_time_evolved_array[0, -1],))
+    logging.info("sigmay time evolved: \n %s \n" % (sigmay_time_evolved_array[0, -1],))
+    logging.info("sigmaz time evolved: \n %s \n" % (sigmaz_time_evolved_array[0, -1],))
 
