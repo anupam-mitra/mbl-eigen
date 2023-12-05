@@ -8,7 +8,6 @@ import argparse
 import logging
 import matplotlib.pyplot as plt
 
-
 logging.basicConfig(level=logging.INFO)
 
 """
@@ -126,12 +125,24 @@ if __name__ == '__main__':
             sigmaz, N=systemsize, targets=(ix_site,))
             for ix_site in range(systemsize)] )
 
+    sigmax_hamiltonian_eigenbasis_array = np.asarray(
+        [basis_changer_qobj.dag() * x * basis_changer_qobj
+            for x in sigmaz_array]
+    )
+
+    sigmay_hamiltonian_eigenbasis_array = np.asarray(
+        [basis_changer_qobj.dag() * y * basis_changer_qobj
+            for y in sigmaz_array]
+    )
+
     sigmaz_hamiltonian_eigenbasis_array = np.asarray(
         [basis_changer_qobj.dag() * z * basis_changer_qobj
             for z in sigmaz_array]
     )
 
-    logging.info(sigmaz_hamiltonian_eigenbasis_array[0])
+    logging.info("sigmax: \n", sigmax_hamiltonian_eigenbasis_array)
+    logging.info("sigmay: \n", sigmay_hamiltonian_eigenbasis_array)
+    logging.info("sigmaz: \n", sigmaz_hamiltonian_eigenbasis_array)
 
     ## Time evolution
     times_array = np.arange(0.0, 10.0625, 0.0625)
