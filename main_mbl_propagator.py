@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 
 """
-Generating the PXP Hamiltonian from Rydberg blockade
+Generating the propagator for a many-body localized system
 """
 if __name__ == '__main__':
 
