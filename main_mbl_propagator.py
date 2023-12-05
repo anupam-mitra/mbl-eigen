@@ -194,8 +194,8 @@ if __name__ == '__main__':
         for ix_site_initial in range(systemsize):
             for ix_site_final in range(systemsize):
 
-                op_initial = sigmax_array[ix_site_initial]
-                op_final = sigmax_time_evolved_array[ix_site_final, ix_time]
+                op_initial = qutip.qobj.Qobj(sigmax_array[ix_site_initial], dims=hamiltonian.dims)
+                op_final = qutip.qobj.Qobj(sigmax_time_evolved_array[ix_site_final, ix_time], dims=hamiltonian.dims)
 
                 logging.info("op_initial type = %s" % type(op_initial))
                 logging.info("op_final type = %s" % type(op_final))
@@ -203,17 +203,17 @@ if __name__ == '__main__':
                 overlap = (op_initial * op_final).tr()
                 overlap_matrix[ix_site_initial, ix_site_final, ix_time] = overlap
 
-                op_initial = sigmay_array[ix_site_initial]
-                op_final = sigmay_time_evolved_array[ix_site_final, ix_time]
+                op_initial = qutip.qobj.Qobj(sigmay_array[ix_site_initial], dims=hamiltonian.dims)
+                op_final = qutip.qobj.Qobj(sigmay_time_evolved_array[ix_site_final, ix_time], dims=hamiltonian.dims)
 
                 overlap = (op_initial * op_final).tr()
                 overlap_matrix[systemsize + ix_site_initial, systemsize + ix_site_final, ix_time] = overlap
 
-                op_initial = sigmaz_array[ix_site_initial]
-                op_final = sigmaz_time_evolved_array[ix_site_final, ix_time]
+                op_initial = qutip.qobj.Qobj(sigmaz_array[ix_site_initial], dims=hamiltonian.dims)
+                op_final = qutip.qobj.Qobj(sigmaz_time_evolved_array[ix_site_final, ix_time], dims=hamiltonian.dims)
 
                 overlap = (op_initial * op_final).tr()
                 overlap_matrix[2 * systemsize + ix_site_initial, 2 * systemsize + ix_site_final, ix_time] = overlap
 
-    logging.info("overlap_matrix = %s" % (overlap_matrix[:, :, -1],))
+    logging.info("overlap_matrix = \n%s" % (np.round(overlap_matrix[:, :, -1], 41),))
 
