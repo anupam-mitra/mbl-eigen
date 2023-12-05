@@ -102,6 +102,30 @@ if __name__ == '__main__':
     ## Diagonalizing Hamiltonian
     eigenvalues, eigenvectors = hamiltonian.eigenstates()
 
+    ## Operators of interest
+    sigmax_array = np.asarray(
+        [qutip.qip.operations.expand_operator(
+            sigmax, N=systemsize, targets=(ix_site,))
+            for ix_site in range(systemsize] )
+
+    sigmay_array = np.asarray(
+        [qutip.qip.operations.expand_operator(
+            sigmay, N=systemsize, targets=(ix_site,))
+            for ix_site in range(systemsize] )
+
+    sigmaz_array = np.asarray(
+        [qutip.qip.operations.expand_operator(
+            sigmaz, N=systemsize, targets=(ix_site,))
+            for ix_site in range(systemsize] )
+
+    sigmaz_hamiltonian_eigenbasis_array = np.asarray(
+        [basis_changer_qobj.dag() * z * basis_changer_qobj
+            for z in sigmaz_array]
+    )
+
+    logging.info(sigmaz_hamiltonian_eigenbasis_array[0])
+
+
     ## Time evolution
     times_array = np.arange(0.0, 10.0625, 0.0625)
 
