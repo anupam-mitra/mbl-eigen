@@ -57,6 +57,7 @@ Run commands from the repository root so both the root shim scripts and
 - `mbl_eigen/level_repulsion.py`: adjacent-level-spacing-ratio helper.
 - `mbl_eigen/reflection.py`: reflection-symmetry utilities.
 - `mbl_eigen/symmetry.py`: symmetry base classes.
+- `benchmarks/`: backend benchmark harness and benchmark-specific usage notes.
 - `level_repulsion.py`, `reflection.py`, `symmetry.py`: compatibility wrappers
   that re-export the package implementations.
 
@@ -413,6 +414,20 @@ Important implementation-specific details:
 - `main_mbl_dynamics.py` and `main_mbl_propagator.py` still expose the same CLI
   surface as `main_mbl.py` even though `--tduration` is not currently consumed
   by those implementations.
+
+## Benchmarking
+
+Benchmark scripts for the Hermitian eigensolver backends live in `benchmarks/`.
+Start with:
+
+```bash
+".venv/bin/python" benchmarks/bench_eigensolver.py --suite smoke --workload both --backends qobj,numpy,scipy --devices cpu --return-eigenvectors both --warmup 1 --repeat 3
+```
+
+See `benchmarks/README.md` for CPU and optional GPU benchmark configurations.
+On the current Apple M1 setup, `torch` and `jax` both benchmark correctly on
+CPU, while the Metal GPU paths still hit backend/runtime limitations that are
+documented there.
 
 ## Verification
 
