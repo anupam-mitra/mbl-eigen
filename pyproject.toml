@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mbl-eigen"
+version = "0.1.0"
+description = "Many-body localization and quantum scar analysis scripts"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+  "scipy",
+  "pandas",
+  "matplotlib",
+  "qutip",
+  "qutip-qip",
+  "jupyter",
+  "h5py",
+]
+
+[tool.setuptools.packages.find]
+include = ["mbl_eigen*"]
