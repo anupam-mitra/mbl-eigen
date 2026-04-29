@@ -30,6 +30,13 @@ python3 -m pip install -r requirements.txt
 
 The package metadata currently requires Python 3.10 or newer.
 
+Optional eigenvalue backends are available as extras:
+
+```bash
+python3 -m pip install .[torch]
+python3 -m pip install .[jax]
+```
+
 Run commands from the repository root so both the root shim scripts and
 `import mbl_eigen` resolve correctly.
 
@@ -45,6 +52,7 @@ Run commands from the repository root so both the root shim scripts and
 - `mbl_eigen/mbldtc_app.py`: MBL-DTC implementation.
 - `mbl_eigen/mbl_app.py`: MBL, MBL dynamics, and MBL propagator implementations.
 - `mbl_eigen/mbl_model.py`: shared random-field MBL Hamiltonian builder.
+- `mbl_eigen/eigensolver.py`: backend-selectable eigenvalue/eigenvector solver layer.
 - `mbl_eigen/output_names.py`: centralized output filename formatting.
 - `mbl_eigen/level_repulsion.py`: adjacent-level-spacing-ratio helper.
 - `mbl_eigen/reflection.py`: reflection-symmetry utilities.
@@ -67,6 +75,10 @@ The repository currently exposes five root-level commands:
 Common CLI behavior:
 
 - All flags are long-form options such as `--systemsize=6`.
+- Hermitian workflows expose `--eigenBackend` to select among `qobj`, `numpy`,
+  `scipy`, `torch`, and `jax`.
+- `main_mbldtc.py` currently supports only `--eigenBackend=qobj` because it
+  diagonalizes a general unitary Floquet operator rather than a Hermitian matrix.
 - The parsers do not mark flags as `required=True`. If a flag is omitted, the
   script usually fails later with `None`-driven runtime errors instead of a
   clean `argparse` usage error.
@@ -83,6 +95,13 @@ Run QMBS / PXP eigenphase analysis with:
 python3 main_qmbs.py --systemsize=6 --tduration=1.0 --Delta=0.1
 ```
 
+To run the same Hermitian diagonalization through a dense backend instead of
+QuTiP, pass `--eigenBackend`, for example:
+
+```bash
+python3 main_qmbs.py --systemsize=6 --tduration=1.0 --Delta=0.1 --eigenBackend=scipy
+```
+
 ### Arguments
 
 | Flag | Type | Meaning |
@@ -90,6 +109,7 @@ python3 main_qmbs.py --systemsize=6 --tduration=1.0 --Delta=0.1
 | `--systemsize` | `int` | Number of spin-1/2 sites |
 | `--tduration` | `float` | Time used to convert energies into unitary eigenphases through `exp(-i E t)` |
 | `--Delta` | `float` | Detuning in units of the Rabi frequency `Omega` |
+| `--eigenBackend` | `str` | Hermitian eigensolver backend: `qobj`, `numpy`, `scipy`, `torch`, or `jax` |
 
 ### Outputs
 
@@ -127,6 +147,7 @@ python3 main_mbldtc.py --systemsize=8 --thetaXPi=0.76
 | --- | --- | --- |
 | `--systemsize` | `int` | Number of spin-1/2 sites |
 | `--thetaXPi` | `float` | Global transverse rotation angle in units of `pi`; the implementation uses `theta_x = pi * thetaXPi` |
+| `--eigenBackend` | `str` | General eigensolver backend; the current implementation supports only `qobj` |
 
 ### Outputs
 
@@ -154,7 +175,7 @@ The UUID suffix makes repeated runs intentionally produce different filenames.
 Run the random-field MBL spectrum and eigenvector entropy analysis with:
 
 ```bash
-python3 main_mbl.py --systemsize=12 --tduration=1.0 --jIntMean=1.0 --bFieldMean=1.0 --jIntStd=1.0 --bFieldStd=1.0 --anglePolarPiMin=0.0 --anglePolarPiMax=1.0
+python3 main_mbl.py --systemsize=12 --tduration=1.0 --jIntMean=1.0 --bFieldMean=1.0 --jIntStd=1.0 --bFieldStd=1.0 --anglePolarPiMin=0.0 --anglePolarPiMax=1.0 --eigenBackend=qobj
 ```
 
 ### Arguments
@@ -169,6 +190,7 @@ python3 main_mbl.py --systemsize=12 --tduration=1.0 --jIntMean=1.0 --bFieldMean=
 | `--bFieldStd` | `float` | Standard deviation of the normal distribution for local field magnitudes |
 | `--anglePolarPiMin` | `float` | Lower bound of the polar-angle sampling interval, in units of `pi` |
 | `--anglePolarPiMax` | `float` | Upper bound of the polar-angle sampling interval, in units of `pi` |
+| `--eigenBackend` | `str` | Hermitian eigensolver backend: `qobj`, `numpy`, `scipy`, `torch`, or `jax` |
 
 ### Outputs
 
@@ -201,12 +223,13 @@ The UUID suffix makes repeated runs intentionally produce different filenames.
 Run the return-rate dynamics analysis with:
 
 ```bash
-python3 main_mbl_dynamics.py --systemsize=12 --tduration=1.0 --jIntMean=1.0 --bFieldMean=1.0 --jIntStd=1.0 --bFieldStd=1.0 --anglePolarPiMin=0.0 --anglePolarPiMax=1.0
+python3 main_mbl_dynamics.py --systemsize=12 --tduration=1.0 --jIntMean=1.0 --bFieldMean=1.0 --jIntStd=1.0 --bFieldStd=1.0 --anglePolarPiMin=0.0 --anglePolarPiMax=1.0 --eigenBackend=qobj
 ```
 
 ### Arguments
 
-`main_mbl_dynamics.py` accepts the same flags as `main_mbl.py`.
+`main_mbl_dynamics.py` accepts the same flags as `main_mbl.py`, including
+`--eigenBackend`.
 
 Important behavior note:
 
@@ -245,12 +268,17 @@ It also prints the following intermediate values to standard output:
 Run the propagator / operator-overlap analysis with:
 
 ```bash
-python3 main_mbl_propagator.py --systemsize=12 --tduration=1.0 --jIntMean=1.0 --bFieldMean=1.0 --jIntStd=1.0 --bFieldStd=1.0 --anglePolarPiMin=0.0 --anglePolarPiMax=1.0
+python3 main_mbl_propagator.py --systemsize=12 --tduration=1.0 --jIntMean=1.0 --bFieldMean=1.0 --jIntStd=1.0 --bFieldStd=1.0 --anglePolarPiMin=0.0 --anglePolarPiMax=1.0 --eigenBackend=numpy
 ```
 
 ### Arguments
 
 `main_mbl_propagator.py` accepts the same flags as `main_mbl.py`.
+
+Default backend note:
+
+- `main_mbl_propagator.py` defaults to `--eigenBackend=numpy` to preserve the
+  previous dense-matrix diagonalization path.
 
 Important behavior note:
 
@@ -309,6 +337,8 @@ parser.
 - `mbl_eigen.mbl_model.sample_mbl_disorder(...)`
 - `mbl_eigen.mbl_model.build_mbl_hamiltonian(...)`
 - `mbl_eigen.mbl_model.build_mbl_model(...)`
+- `mbl_eigen.eigensolver.solve_hermitian_eigenproblem(...)`
+- `mbl_eigen.eigensolver.solve_general_eigenproblem(...)`
 
 `build_mbl_model(...)` returns an `MBLModel` dataclass with:
 
@@ -371,6 +401,11 @@ Important implementation-specific details:
   diagonalization, and partial traces.
 - `qutip-qip` is required because the code expands local operators and gates
   with `qutip.qip.operations.expand_operator`.
+- Hermitian eigenvalue calculations now pass through `mbl_eigen.eigensolver`,
+  which supports `Qobj.eigenstates()`, `numpy.linalg.eigh`,
+  `scipy.linalg.eigh`, `torch.linalg.eigh`, and `jax.numpy.linalg.eigh`.
+- `torch` and `jax` are optional extras and are imported lazily only when their
+  backends are selected.
 - The MBL workflows share one Hamiltonian builder instead of duplicating the
   random-field model setup in each script.
 - The output naming logic is centralized so the shim scripts preserve the same

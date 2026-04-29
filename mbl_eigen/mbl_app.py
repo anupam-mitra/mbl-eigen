@@ -5,6 +5,7 @@ import numpy as np
 import qutip
 from qutip.qip.operations import expand_operator
 
+from . import eigensolver
 from . import level_repulsion
 from . import output_names
 from .mbl_model import build_mbl_model
@@ -44,7 +45,12 @@ def run_mbl(args):
     logging.info("jInt_Samples = %s" % model.jInt_samples)
 
     ## Diagonalizing Hamiltonian
-    eigenvalues, eigenvectors = model.hamiltonian.eigenstates()
+    diagonalization = eigensolver.solve_hermitian_eigenproblem(
+        model.hamiltonian,
+        backend=args.eigenBackend,
+    )
+    eigenvalues = diagonalization.eigenvalues
+    eigenvectors = diagonalization.as_qobj_kets()
 
     eigenvector_entropies = np.array([
             qutip.entropy_vn(qutip.ptrace(v, [ix for ix in range(systemsize >> 1)]))
@@ -112,7 +118,12 @@ def run_mbl_dynamics(args):
     print("jInt_samples = %s" % model.jInt_samples)
 
     ## Diagonalizing Hamiltonian
-    eigenvalues, eigenvectors = model.hamiltonian.eigenstates()
+    diagonalization = eigensolver.solve_hermitian_eigenproblem(
+        model.hamiltonian,
+        backend=args.eigenBackend,
+    )
+    eigenvalues = diagonalization.eigenvalues
+    eigenvectors = diagonalization.as_qobj_kets()
 
     ## Time evolution
     ket_initial = qutip.ket('1' * systemsize)
@@ -170,10 +181,12 @@ def run_mbl_propagator(args):
     sigmaz = model.sigmaz
 
     ## Diagonalizing Hamiltonian
-    hamiltonian_ndarray = hamiltonian.full()
-    energies, basis_changer = np.linalg.eigh(hamiltonian_ndarray)
-
-    basis_changer_qobj = qutip.Qobj(basis_changer, dims=hamiltonian.dims)
+    diagonalization = eigensolver.solve_hermitian_eigenproblem(
+        hamiltonian,
+        backend=args.eigenBackend,
+    )
+    energies = diagonalization.eigenvalues
+    basis_changer_qobj = diagonalization.as_basis_qobj()
 
     logging.info("basis_changer_obj = %s" % (basis_changer_qobj,))
 

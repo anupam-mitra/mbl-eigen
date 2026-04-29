@@ -2,6 +2,7 @@ import numpy as np
 import qutip
 from qutip.qip.operations import expand_operator
 
+from . import eigensolver
 from . import symmetry
 
 
@@ -51,8 +52,12 @@ class ReflectionAboutCenter(symmetry.Involution):
         """
 
         if not hasattr(self, "eigenvalues"):
-            self.eigenvalues, self.eigenvectors = \
-                self.op.eigenstates()
+            diagonalization = eigensolver.solve_hermitian_eigenproblem(self.op)
+            self.eigenvalues = diagonalization.eigenvalues
+            self.eigenvectors = np.asarray(
+                diagonalization.as_qobj_kets(),
+                dtype=object,
+            )
 
     def get_even_projector_eigen(self):
         """

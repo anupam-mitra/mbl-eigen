@@ -1,5 +1,8 @@
 import argparse
 
+from .eigensolver import GENERAL_EIGEN_BACKENDS
+from .eigensolver import HERMITIAN_EIGEN_BACKENDS
+
 
 COMMON_DESCRIPTION = "Plots eigenphases of the time evolution operator under a PXP like Hamiltonian"
 
@@ -14,26 +17,37 @@ def build_qmbs_parser():
     argument_parser.add_argument("--systemsize", type=int)
     argument_parser.add_argument("--tduration", type=float)
     argument_parser.add_argument("--Delta", type=float)
+    argument_parser.add_argument(
+        "--eigenBackend",
+        choices=HERMITIAN_EIGEN_BACKENDS,
+        default="qobj",
+    )
 
     return argument_parser
 
 
 def build_mbldtc_parser():
     argument_parser = argparse.ArgumentParser(
-        prog="main_qmbs.py",
+        prog="main_mbldtc.py",
         description=COMMON_DESCRIPTION,
         epilog="",
     )
 
     argument_parser.add_argument("--systemsize", type=int)
     argument_parser.add_argument("--thetaXPi", type=float)
+    argument_parser.add_argument(
+        "--eigenBackend",
+        choices=GENERAL_EIGEN_BACKENDS,
+        default="qobj",
+    )
 
     return argument_parser
 
 
 def build_mbl_parser(
-        prog="main_qmbs.py",
-        description=COMMON_DESCRIPTION):
+        prog="main_mbl.py",
+        description=COMMON_DESCRIPTION,
+        default_eigen_backend="qobj"):
     argument_parser = argparse.ArgumentParser(
         prog=prog,
         description=description,
@@ -48,5 +62,10 @@ def build_mbl_parser(
     argument_parser.add_argument("--bFieldStd", type=float)
     argument_parser.add_argument("--anglePolarPiMin", type=float)
     argument_parser.add_argument("--anglePolarPiMax", type=float)
+    argument_parser.add_argument(
+        "--eigenBackend",
+        choices=HERMITIAN_EIGEN_BACKENDS,
+        default=default_eigen_backend,
+    )
 
     return argument_parser

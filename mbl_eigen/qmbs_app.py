@@ -5,6 +5,7 @@ import numpy as np
 import qutip
 from qutip.qip.operations import expand_operator
 
+from . import eigensolver
 from . import level_repulsion
 from . import output_names
 
@@ -102,9 +103,19 @@ def run_qmbs(args):
                         h, N=systemsize, targets=(ix_site,))
 
     ## Diagonalizing Hamiltonian
-    eigenvalues, eigenvectors = hamiltonian.eigenstates()
+    diagonalization = eigensolver.solve_hermitian_eigenproblem(
+        hamiltonian,
+        backend=args.eigenBackend,
+        return_eigenvectors=False,
+    )
+    diagonalization_pxp = eigensolver.solve_hermitian_eigenproblem(
+        hamiltonian_pxp,
+        backend=args.eigenBackend,
+        return_eigenvectors=False,
+    )
 
-    eigenvalues_pxp, eigenvectors_pxp = hamiltonian_pxp.eigenstates()
+    eigenvalues = diagonalization.eigenvalues
+    eigenvalues_pxp = diagonalization_pxp.eigenvalues
 
     eigenvalues_unitary = np.exp(-1j * eigenvalues * tduration)
 

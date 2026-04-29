@@ -19,5 +19,14 @@ dependencies = [
   "h5py",
 ]
 
+[project.optional-dependencies]
+torch = [
+  "torch",
+]
+jax = [
+  "jax",
+  "jaxlib",
+]
+
 [tool.setuptools.packages.find]
 include = ["mbl_eigen*"]

@@ -5,6 +5,7 @@ import numpy as np
 import qutip
 from qutip.qip.operations import expand_operator
 
+from . import eigensolver
 from . import level_repulsion
 from . import output_names
 
@@ -71,7 +72,12 @@ def run_mbldtc(args):
         u_floquet = g * u_floquet
 
     ## Diagonalizing Floquet operator
-    eigenvalues, eigenvectors = u_floquet.eigenstates()
+    diagonalization = eigensolver.solve_general_eigenproblem(
+        u_floquet,
+        backend=args.eigenBackend,
+        return_eigenvectors=False,
+    )
+    eigenvalues = diagonalization.eigenvalues
 
     logging.info("----- Eigenvalues -----")
     logging.info("Eigenvalues = %s" % (eigenvalues,))

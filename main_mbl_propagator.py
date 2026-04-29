@@ -8,6 +8,7 @@ def main():
     argument_parser = build_mbl_parser(
         prog="main_mbl_propagator.py",
         description="",
+        default_eigen_backend="numpy",
     )
     run_mbl_propagator(argument_parser.parse_args())
 
