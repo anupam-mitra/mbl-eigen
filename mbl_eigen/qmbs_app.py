@@ -106,11 +106,13 @@ def run_qmbs(args):
     diagonalization = eigensolver.solve_hermitian_eigenproblem(
         hamiltonian,
         backend=args.eigenBackend,
+        device=args.eigenDevice,
         return_eigenvectors=False,
     )
     diagonalization_pxp = eigensolver.solve_hermitian_eigenproblem(
         hamiltonian_pxp,
         backend=args.eigenBackend,
+        device=args.eigenDevice,
         return_eigenvectors=False,
     )
 

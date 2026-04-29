@@ -78,8 +78,12 @@ Common CLI behavior:
 - All flags are long-form options such as `--systemsize=6`.
 - Hermitian workflows expose `--eigenBackend` to select among `qobj`, `numpy`,
   `scipy`, `torch`, and `jax`.
+- Backend-selectable workflows also expose `--eigenDevice` with
+  `auto`, `cpu`, `gpu`, `cuda`, and `mps` choices.
 - `main_mbldtc.py` currently supports only `--eigenBackend=qobj` because it
   diagonalizes a general unitary Floquet operator rather than a Hermitian matrix.
+- `qobj`, `numpy`, and `scipy` remain CPU-only even when `--eigenDevice` is
+  passed.
 - The parsers do not mark flags as `required=True`. If a flag is omitted, the
   script usually fails later with `None`-driven runtime errors instead of a
   clean `argparse` usage error.
@@ -103,6 +107,13 @@ QuTiP, pass `--eigenBackend`, for example:
 python3 main_qmbs.py --systemsize=6 --tduration=1.0 --Delta=0.1 --eigenBackend=scipy
 ```
 
+To force a specific device when the backend supports it, pass
+`--eigenDevice`, for example:
+
+```bash
+python3 main_qmbs.py --systemsize=6 --tduration=1.0 --Delta=0.1 --eigenBackend=torch --eigenDevice=cpu
+```
+
 ### Arguments
 
 | Flag | Type | Meaning |
@@ -111,6 +122,7 @@ python3 main_qmbs.py --systemsize=6 --tduration=1.0 --Delta=0.1 --eigenBackend=s
 | `--tduration` | `float` | Time used to convert energies into unitary eigenphases through `exp(-i E t)` |
 | `--Delta` | `float` | Detuning in units of the Rabi frequency `Omega` |
 | `--eigenBackend` | `str` | Hermitian eigensolver backend: `qobj`, `numpy`, `scipy`, `torch`, or `jax` |
+| `--eigenDevice` | `str` | Requested solver device: `auto`, `cpu`, `gpu`, `cuda`, or `mps` |
 
 ### Outputs
 
@@ -149,6 +161,7 @@ python3 main_mbldtc.py --systemsize=8 --thetaXPi=0.76
 | `--systemsize` | `int` | Number of spin-1/2 sites |
 | `--thetaXPi` | `float` | Global transverse rotation angle in units of `pi`; the implementation uses `theta_x = pi * thetaXPi` |
 | `--eigenBackend` | `str` | General eigensolver backend; the current implementation supports only `qobj` |
+| `--eigenDevice` | `str` | Requested solver device: `auto`, `cpu`, `gpu`, `cuda`, or `mps`; only CPU is currently meaningful for `qobj` |
 
 ### Outputs
 
@@ -176,7 +189,7 @@ The UUID suffix makes repeated runs intentionally produce different filenames.
 Run the random-field MBL spectrum and eigenvector entropy analysis with:
 
 ```bash
-python3 main_mbl.py --systemsize=12 --tduration=1.0 --jIntMean=1.0 --bFieldMean=1.0 --jIntStd=1.0 --bFieldStd=1.0 --anglePolarPiMin=0.0 --anglePolarPiMax=1.0 --eigenBackend=qobj
+python3 main_mbl.py --systemsize=12 --tduration=1.0 --jIntMean=1.0 --bFieldMean=1.0 --jIntStd=1.0 --bFieldStd=1.0 --anglePolarPiMin=0.0 --anglePolarPiMax=1.0 --eigenBackend=qobj --eigenDevice=auto
 ```
 
 ### Arguments
@@ -192,6 +205,7 @@ python3 main_mbl.py --systemsize=12 --tduration=1.0 --jIntMean=1.0 --bFieldMean=
 | `--anglePolarPiMin` | `float` | Lower bound of the polar-angle sampling interval, in units of `pi` |
 | `--anglePolarPiMax` | `float` | Upper bound of the polar-angle sampling interval, in units of `pi` |
 | `--eigenBackend` | `str` | Hermitian eigensolver backend: `qobj`, `numpy`, `scipy`, `torch`, or `jax` |
+| `--eigenDevice` | `str` | Requested solver device: `auto`, `cpu`, `gpu`, `cuda`, or `mps` |
 
 ### Outputs
 
@@ -224,13 +238,13 @@ The UUID suffix makes repeated runs intentionally produce different filenames.
 Run the return-rate dynamics analysis with:
 
 ```bash
-python3 main_mbl_dynamics.py --systemsize=12 --tduration=1.0 --jIntMean=1.0 --bFieldMean=1.0 --jIntStd=1.0 --bFieldStd=1.0 --anglePolarPiMin=0.0 --anglePolarPiMax=1.0 --eigenBackend=qobj
+python3 main_mbl_dynamics.py --systemsize=12 --tduration=1.0 --jIntMean=1.0 --bFieldMean=1.0 --jIntStd=1.0 --bFieldStd=1.0 --anglePolarPiMin=0.0 --anglePolarPiMax=1.0 --eigenBackend=qobj --eigenDevice=auto
 ```
 
 ### Arguments
 
 `main_mbl_dynamics.py` accepts the same flags as `main_mbl.py`, including
-`--eigenBackend`.
+`--eigenBackend` and `--eigenDevice`.
 
 Important behavior note:
 
@@ -269,7 +283,7 @@ It also prints the following intermediate values to standard output:
 Run the propagator / operator-overlap analysis with:
 
 ```bash
-python3 main_mbl_propagator.py --systemsize=12 --tduration=1.0 --jIntMean=1.0 --bFieldMean=1.0 --jIntStd=1.0 --bFieldStd=1.0 --anglePolarPiMin=0.0 --anglePolarPiMax=1.0 --eigenBackend=numpy
+python3 main_mbl_propagator.py --systemsize=12 --tduration=1.0 --jIntMean=1.0 --bFieldMean=1.0 --jIntStd=1.0 --bFieldStd=1.0 --anglePolarPiMin=0.0 --anglePolarPiMax=1.0 --eigenBackend=numpy --eigenDevice=cpu
 ```
 
 ### Arguments
@@ -405,6 +419,9 @@ Important implementation-specific details:
 - Hermitian eigenvalue calculations now pass through `mbl_eigen.eigensolver`,
   which supports `Qobj.eigenstates()`, `numpy.linalg.eigh`,
   `scipy.linalg.eigh`, `torch.linalg.eigh`, and `jax.numpy.linalg.eigh`.
+- The analysis CLIs expose both `--eigenBackend` and `--eigenDevice`, so CUDA or
+  MPS requests can be made directly when the selected backend and local runtime
+  support them.
 - `torch` and `jax` are optional extras and are imported lazily only when their
   backends are selected.
 - The MBL workflows share one Hamiltonian builder instead of duplicating the

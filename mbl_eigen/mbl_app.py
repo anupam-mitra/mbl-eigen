@@ -48,6 +48,7 @@ def run_mbl(args):
     diagonalization = eigensolver.solve_hermitian_eigenproblem(
         model.hamiltonian,
         backend=args.eigenBackend,
+        device=args.eigenDevice,
     )
     eigenvalues = diagonalization.eigenvalues
     eigenvectors = diagonalization.as_qobj_kets()
@@ -121,6 +122,7 @@ def run_mbl_dynamics(args):
     diagonalization = eigensolver.solve_hermitian_eigenproblem(
         model.hamiltonian,
         backend=args.eigenBackend,
+        device=args.eigenDevice,
     )
     eigenvalues = diagonalization.eigenvalues
     eigenvectors = diagonalization.as_qobj_kets()
@@ -184,6 +186,7 @@ def run_mbl_propagator(args):
     diagonalization = eigensolver.solve_hermitian_eigenproblem(
         hamiltonian,
         backend=args.eigenBackend,
+        device=args.eigenDevice,
     )
     energies = diagonalization.eigenvalues
     basis_changer_qobj = diagonalization.as_basis_qobj()

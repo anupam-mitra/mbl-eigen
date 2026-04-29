@@ -3,6 +3,9 @@
 This directory contains a lightweight benchmark harness for the Hermitian
 eigensolver backends exposed by `mbl_eigen.eigensolver`.
 
+The analysis CLIs also expose the same device vocabulary through
+`--eigenDevice`.
+
 The benchmark currently focuses on Hermitian workloads because the general
 eigendecomposition path only supports `qobj` today.
 

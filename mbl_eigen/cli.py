@@ -1,5 +1,6 @@
 import argparse
 
+from .eigensolver import EIGENSOLVER_DEVICE_CHOICES
 from .eigensolver import GENERAL_EIGEN_BACKENDS
 from .eigensolver import HERMITIAN_EIGEN_BACKENDS
 
@@ -22,6 +23,11 @@ def build_qmbs_parser():
         choices=HERMITIAN_EIGEN_BACKENDS,
         default="qobj",
     )
+    argument_parser.add_argument(
+        "--eigenDevice",
+        choices=EIGENSOLVER_DEVICE_CHOICES,
+        default="auto",
+    )
 
     return argument_parser
 
@@ -39,6 +45,11 @@ def build_mbldtc_parser():
         "--eigenBackend",
         choices=GENERAL_EIGEN_BACKENDS,
         default="qobj",
+    )
+    argument_parser.add_argument(
+        "--eigenDevice",
+        choices=EIGENSOLVER_DEVICE_CHOICES,
+        default="auto",
     )
 
     return argument_parser
@@ -66,6 +77,11 @@ def build_mbl_parser(
         "--eigenBackend",
         choices=HERMITIAN_EIGEN_BACKENDS,
         default=default_eigen_backend,
+    )
+    argument_parser.add_argument(
+        "--eigenDevice",
+        choices=EIGENSOLVER_DEVICE_CHOICES,
+        default="auto",
     )
 
     return argument_parser

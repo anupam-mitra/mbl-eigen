@@ -75,6 +75,7 @@ def run_mbldtc(args):
     diagonalization = eigensolver.solve_general_eigenproblem(
         u_floquet,
         backend=args.eigenBackend,
+        device=args.eigenDevice,
         return_eigenvectors=False,
     )
     eigenvalues = diagonalization.eigenvalues
