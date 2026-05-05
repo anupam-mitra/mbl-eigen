@@ -27,6 +27,9 @@ jax = [
   "jax",
   "jaxlib",
 ]
+qiskit = [
+  "qiskit",
+]
 
 [tool.setuptools.packages.find]
 include = ["mbl_eigen*"]

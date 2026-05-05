@@ -37,6 +37,12 @@ python3 -m pip install .[torch]
 python3 -m pip install .[jax]
 ```
 
+The optional Qiskit circuit layer is available with:
+
+```bash
+python3 -m pip install .[qiskit]
+```
+
 Run commands from the repository root so both the root shim scripts and
 `import mbl_eigen` resolve correctly.
 
@@ -53,6 +59,7 @@ Run commands from the repository root so both the root shim scripts and
 - `mbl_eigen/mbl_app.py`: MBL, MBL dynamics, and MBL propagator implementations.
 - `mbl_eigen/mbl_model.py`: shared random-field MBL Hamiltonian builder.
 - `mbl_eigen/eigensolver.py`: backend-selectable eigenvalue/eigenvector solver layer.
+- `mbl_eigen/qiskit_propagators.py`: Qiskit circuit builders for hardware-suitable MBL and MBL-DTC propagators.
 - `mbl_eigen/output_names.py`: centralized output filename formatting.
 - `mbl_eigen/level_repulsion.py`: adjacent-level-spacing-ratio helper.
 - `mbl_eigen/reflection.py`: reflection-symmetry utilities.
@@ -355,6 +362,57 @@ parser.
 - `mbl_eigen.eigensolver.solve_hermitian_eigenproblem(...)`
 - `mbl_eigen.eigensolver.solve_general_eigenproblem(...)`
 
+### Qiskit Propagator API
+
+- `mbl_eigen.qiskit_propagators.build_mbl_trotter_step_circuit(...)`
+- `mbl_eigen.qiskit_propagators.build_mbl_trotter_circuit(...)`
+- `mbl_eigen.qiskit_propagators.build_mbl_trotter_circuit_from_model(...)`
+- `mbl_eigen.qiskit_propagators.sample_mbldtc_angles(...)`
+- `mbl_eigen.qiskit_propagators.build_mbldtc_floquet_circuit(...)`
+
+These builders target gate-based quantum computers directly:
+
+- MBL time evolution is synthesized as a nearest-neighbor Trotter circuit using
+  `rx`, `rz`, and `rzz` gates.
+- The MBL-DTC Floquet operator is an exact gate-native circuit built from
+  `rx`, `rz`, and `rzz` layers.
+
+Example:
+
+```python
+import numpy as np
+
+from mbl_eigen.mbl_model import build_mbl_model
+from mbl_eigen.qiskit_propagators import build_mbldtc_floquet_circuit
+from mbl_eigen.qiskit_propagators import build_mbl_trotter_circuit_from_model
+from mbl_eigen.qiskit_propagators import sample_mbldtc_angles
+
+model = build_mbl_model(
+    systemsize=4,
+    jIntMean=1.0,
+    jIntStd=0.1,
+    bFieldMean=1.0,
+    bFieldStd=0.1,
+    anglePolarPiMin=0.0,
+    anglePolarPiMax=1.0,
+)
+
+mbl_circuit = build_mbl_trotter_circuit_from_model(
+    model,
+    time=0.5,
+    trotter_steps=4,
+)
+
+phi_z, phi_zz = sample_mbldtc_angles(systemsize=4)
+dtc_circuit = build_mbldtc_floquet_circuit(
+    systemsize=4,
+    theta_x=np.pi * 0.76,
+    phi_z=phi_z,
+    phi_zz=phi_zz,
+    cycles=2,
+)
+```
+
 `build_mbl_model(...)` returns an `MBLModel` dataclass with:
 
 - `hamiltonian`
@@ -424,6 +482,9 @@ Important implementation-specific details:
   support them.
 - `torch` and `jax` are optional extras and are imported lazily only when their
   backends are selected.
+- The Qiskit circuit layer is separate from the eigensolver abstraction. It
+  builds gate-native propagators for MBL and MBL-DTC rather than introducing a
+  new diagonalization backend.
 - The MBL workflows share one Hamiltonian builder instead of duplicating the
   random-field model setup in each script.
 - The output naming logic is centralized so the shim scripts preserve the same
