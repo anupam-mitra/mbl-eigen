@@ -116,8 +116,42 @@ def plot_return_rate(times, amplitudes, systemsize, filename, *, figsize=None):
     plt.close(fig)
 
 
+def plot_magnetization_z(times, magnetization_z, filename, *, figsize=None):
+    """Plot site-resolved ⟨Z_i⟩(t) vs time.
+
+    Saves a PDF to *filename* and closes the figure.
+
+    Parameters
+    ----------
+    times : numpy.ndarray of float
+        Time grid.
+    magnetization_z : numpy.ndarray of float
+        Site-resolved magnetization ``(N, T)``.
+    filename : str
+        Output path.
+    figsize : tuple of float, optional
+        ``(width, height)`` in inches.  Defaults to 18×12 cm.
+    """
+    if figsize is None:
+        figsize = _WIDE_FIGSIZE
+
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
+    
+    systemsize = magnetization_z.shape[0]
+    for i in range(systemsize):
+        ax.plot(times, magnetization_z[i, :], label=rf"Site {i}")
+        
+    ax.set_ylabel(r"$\langle Z_i \rangle(t)$")
+    ax.set_xlabel(r"$t$")
+    ax.legend(loc="best")
+
+    fig.savefig(filename)
+    plt.close(fig)
+
+
 __all__ = [
     "plot_eigenphases_unit_circle",
     "plot_eigenvector_entropy",
+    "plot_magnetization_z",
     "plot_return_rate",
 ]

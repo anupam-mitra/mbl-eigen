@@ -29,6 +29,7 @@ jax = [
 ]
 qiskit = [
   "qiskit",
+  "qiskit-aer",
 ]
 
 [tool.setuptools.packages.find]

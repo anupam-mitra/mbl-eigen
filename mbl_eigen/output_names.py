@@ -74,3 +74,15 @@ def mbl_dynamics_plot_name(
         "mbl_sfim_dynamics", systemsize, anglePolarPiMin, anglePolarPiMax,
         jIntMean, jIntStd, bFieldMean, bFieldStd,
     )
+
+
+def mbl_qiskit_plot_name(
+    systemsize, anglePolarPiMin, anglePolarPiMax, jIntMean, jIntStd,
+    bFieldMean, bFieldStd, backend, trotter_steps
+):
+    """Return a UUID-suffixed filename for a Qiskit simulation plot."""
+    prefix = f"mbl_qiskit_sim_{backend}_tsteps={trotter_steps}"
+    return _mbl_plot_name(
+        prefix, systemsize, anglePolarPiMin, anglePolarPiMax,
+        jIntMean, jIntStd, bFieldMean, bFieldStd,
+    )

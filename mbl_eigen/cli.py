@@ -85,3 +85,26 @@ def build_mbl_parser(
     )
 
     return argument_parser
+
+
+def build_qiskit_sim_parser():
+    from .qiskit_simulation import QISKIT_SIM_BACKENDS, DEFAULT_FAKE_BACKEND_NAME
+
+    argument_parser = build_mbl_parser(
+        prog="main_qiskit_sim.py",
+        description="MBL time evolution via Qiskit simulation backends.",
+    )
+
+    argument_parser.add_argument(
+        "--simBackend",
+        choices=QISKIT_SIM_BACKENDS,
+        default="statevector",
+    )
+    argument_parser.add_argument("--shots", type=int, default=None)
+    argument_parser.add_argument(
+        "--fakeBackend", type=str, default=DEFAULT_FAKE_BACKEND_NAME
+    )
+    argument_parser.add_argument("--trotterSteps", type=int, default=10)
+    argument_parser.add_argument("--trotterOrder", type=int, choices=[1, 2], default=2)
+
+    return argument_parser
