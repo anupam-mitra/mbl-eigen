@@ -59,17 +59,15 @@ Notes:
 
 - `qobj`, `numpy`, and `scipy` are CPU-only. GPU requests for those backends are
   reported as skips.
-- `torch` may run on CPU, CUDA, or Apple MPS depending on installation and
-  hardware.
+- `torch` runs on CPU or CUDA. MPS eigendecomposition is rejected by the solver.
 - `jax` uses the best matching available device for `gpu`, `cuda`, or `mps`
   requests and reports the actual JAX device used.
 
 Apple M1 note from the current verified setup:
 
 - `torch` CPU benchmarking works.
-- `torch` GPU requests on MPS currently skip because `torch.linalg.eigh` is not
-  implemented on MPS, and the solver currently uses `float64` / `complex128`
-  dtypes that MPS does not accept.
+- `torch` MPS requests skip because the solver does not support MPS
+  eigendecomposition.
 - `jax` CPU benchmarking works when launched with `JAX_PLATFORMS=cpu`.
 - `jax-metal` initializes a Metal device, but the current GPU benchmark path
   still fails on this machine with `UNIMPLEMENTED: default_memory_space is not supported`.

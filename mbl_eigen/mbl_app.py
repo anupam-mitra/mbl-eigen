@@ -16,7 +16,17 @@ Generating the PXP Hamiltonian from Rydberg blockade
 """
 
 
-def _build_model_from_args(args):
+def _rng_from_args(args, rng):
+    if rng is not None:
+        return rng
+
+    seed = getattr(args, "seed", None)
+    if seed is None:
+        return None
+    return np.random.default_rng(seed)
+
+
+def _build_model_from_args(args, rng=None):
     return build_mbl_model(
         systemsize=args.systemsize,
         jIntMean=args.jIntMean,
@@ -25,10 +35,11 @@ def _build_model_from_args(args):
         bFieldStd=args.bFieldStd,
         anglePolarPiMin=args.anglePolarPiMin,
         anglePolarPiMax=args.anglePolarPiMax,
+        rng=rng,
     )
 
 
-def run_mbl(args):
+def run_mbl(args, rng=None):
     systemsize = args.systemsize
     tduration = args.tduration
     jIntMean = args.jIntMean
@@ -38,7 +49,7 @@ def run_mbl(args):
     anglePolarPiMin = args.anglePolarPiMin
     anglePolarPiMax = args.anglePolarPiMax
 
-    model = _build_model_from_args(args)
+    model = _build_model_from_args(args, _rng_from_args(args, rng))
 
     logging.info("bField_samples = %s" % model.bField_samples)
     logging.info("theta_samples = %s" % model.theta_samples)
@@ -106,7 +117,7 @@ def run_mbl(args):
     plt.close()
 
 
-def run_mbl_dynamics(args):
+def run_mbl_dynamics(args, rng=None):
     systemsize = args.systemsize
     jIntMean = args.jIntMean
     jIntStd = args.jIntStd
@@ -115,7 +126,7 @@ def run_mbl_dynamics(args):
     anglePolarPiMin = args.anglePolarPiMin
     anglePolarPiMax = args.anglePolarPiMax
 
-    model = _build_model_from_args(args)
+    model = _build_model_from_args(args, _rng_from_args(args, rng))
 
     print("bField_samples = %s" % model.bField_samples)
     print("theta_samples = %s" % model.theta_samples)
@@ -137,7 +148,7 @@ def run_mbl_dynamics(args):
     amplitude_eigenvectors = [v.overlap(ket_initial) for v in eigenvectors]
     print(amplitude_eigenvectors)
 
-    times_array = np.arange(0.0, 10.0625, 0.0625)
+    times_array = _time_grid(args.tduration)
 
     amplitude_return_array = np.empty_like(times_array, dtype=complex)
 
@@ -172,9 +183,9 @@ def run_mbl_dynamics(args):
     plt.close()
 
 
-def run_mbl_propagator(args):
+def run_mbl_propagator(args, rng=None):
     systemsize = args.systemsize
-    model = _build_model_from_args(args)
+    model = _build_model_from_args(args, _rng_from_args(args, rng))
 
     logging.info("bField_samples = %s" % model.bField_samples)
     logging.info("theta_samples = %s" % model.theta_samples)
@@ -233,7 +244,7 @@ def run_mbl_propagator(args):
     logging.info("sigmaz: \n %s \n" % (sigmaz_hamiltonian_eigenbasis_array,))
 
     ## Time evolution
-    times_array: np.ndarray = np.arange(0.0, 1.0625, 0.0625)
+    times_array: np.ndarray = _time_grid(args.tduration)
 
     eigenphases: np.ndarray = np.empty((len(times_array), len(energies)), dtype=complex)
 
@@ -320,3 +331,12 @@ def _compute_overlap_matrix(
                         ] = (op_initial * op_final).tr()
 
     return overlap_matrix
+
+
+def _time_grid(duration, step=0.0625):
+    duration = float(duration)
+    if not np.isfinite(duration) or duration < 0.0:
+        raise ValueError("tduration must be finite and non-negative")
+
+    sample_count = max(1, int(np.ceil(duration / step)))
+    return np.linspace(0.0, duration, sample_count + 1)

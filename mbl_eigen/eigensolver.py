@@ -64,14 +64,15 @@ def solve_hermitian_eigenproblem(
 
     if backend == "qobj":
         actual_device = _resolve_cpu_only_device(device, backend)
-        eigenvalues, eigenvectors = operator_qobj.eigenstates()
-        eigenvectors_array = None
-
         if return_eigenvectors:
+            eigenvalues, eigenvectors = operator_qobj.eigenstates()
             eigenvectors_array = np.column_stack([
                 np.asarray(v.full(), dtype=np.complex128).reshape(-1)
                 for v in eigenvectors
             ])
+        else:
+            eigenvalues = operator_qobj.eigenenergies()
+            eigenvectors_array = None
 
         return _build_hermitian_result(
             eigenvalues=eigenvalues,
@@ -85,23 +86,30 @@ def solve_hermitian_eigenproblem(
 
     if backend == "numpy":
         actual_device = _resolve_cpu_only_device(device, backend)
-        eigenvalues, eigenvectors_array = np.linalg.eigh(operator_ndarray)
+        if return_eigenvectors:
+            eigenvalues, eigenvectors_array = np.linalg.eigh(operator_ndarray)
+        else:
+            eigenvalues = np.linalg.eigvalsh(operator_ndarray)
+            eigenvectors_array = None
     elif backend == "scipy":
         actual_device = _resolve_cpu_only_device(device, backend)
-        eigenvalues, eigenvectors_array = scipy.linalg.eigh(operator_ndarray)
+        if return_eigenvectors:
+            eigenvalues, eigenvectors_array = scipy.linalg.eigh(operator_ndarray)
+        else:
+            eigenvalues = scipy.linalg.eigvalsh(operator_ndarray)
+            eigenvectors_array = None
     elif backend == "torch":
         eigenvalues, eigenvectors_array, actual_device = _torch_eigh(
             operator_ndarray,
             device=device,
+            return_eigenvectors=return_eigenvectors,
         )
     else:
         eigenvalues, eigenvectors_array, actual_device = _jax_eigh(
             operator_ndarray,
             device=device,
+            return_eigenvectors=return_eigenvectors,
         )
-
-    if not return_eigenvectors:
-        eigenvectors_array = None
 
     return _build_hermitian_result(
         eigenvalues=eigenvalues,
@@ -132,14 +140,15 @@ def solve_general_eigenproblem(
 
     operator_qobj = _as_qobj_operator(operator)
     actual_device = _resolve_cpu_only_device(device, backend)
-    eigenvalues, eigenvectors = operator_qobj.eigenstates()
-    eigenvectors_array = None
-
     if return_eigenvectors:
+        eigenvalues, eigenvectors = operator_qobj.eigenstates()
         eigenvectors_array = np.column_stack([
             np.asarray(v.full(), dtype=np.complex128).reshape(-1)
             for v in eigenvectors
         ])
+    else:
+        eigenvalues = operator_qobj.eigenenergies()
+        eigenvectors_array = None
 
     return EigenResult(
         eigenvalues=np.asarray(eigenvalues, dtype=np.complex128),
@@ -175,7 +184,7 @@ def _build_hermitian_result(eigenvalues, eigenvectors_array, backend, dims, devi
     )
 
 
-def _torch_eigh(operator_ndarray, device):
+def _torch_eigh(operator_ndarray, device, return_eigenvectors):
     try:
         import torch
     except ImportError as exc:
@@ -189,14 +198,21 @@ def _torch_eigh(operator_ndarray, device):
         dtype=torch.complex128,
         device=torch.device(actual_device),
     )
-    eigenvalues, eigenvectors = torch.linalg.eigh(operator_tensor)
+    if return_eigenvectors:
+        eigenvalues, eigenvectors = torch.linalg.eigh(operator_tensor)
+    else:
+        eigenvalues = torch.linalg.eigvalsh(operator_tensor)
+        eigenvectors = None
     _torch_synchronize(torch, actual_device)
 
-    return np.asarray(eigenvalues.cpu(), dtype=np.float64), np.asarray(
-        eigenvectors.cpu(), dtype=np.complex128), actual_device
+    eigenvectors_array = None
+    if eigenvectors is not None:
+        eigenvectors_array = np.asarray(eigenvectors.cpu(), dtype=np.complex128)
+
+    return np.asarray(eigenvalues.cpu(), dtype=np.float64), eigenvectors_array, actual_device
 
 
-def _jax_eigh(operator_ndarray, device):
+def _jax_eigh(operator_ndarray, device, return_eigenvectors):
     try:
         import jax
         import jax.numpy as jnp
@@ -211,12 +227,20 @@ def _jax_eigh(operator_ndarray, device):
         jnp.asarray(operator_ndarray, dtype=jnp.complex128),
         device=actual_device,
     )
-    eigenvalues, eigenvectors = jnp.linalg.eigh(operator_array)
+    if return_eigenvectors:
+        eigenvalues, eigenvectors = jnp.linalg.eigh(operator_array)
+    else:
+        eigenvalues = jnp.linalg.eigvalsh(operator_array)
+        eigenvectors = None
     eigenvalues.block_until_ready()
-    eigenvectors.block_until_ready()
+    if eigenvectors is not None:
+        eigenvectors.block_until_ready()
 
-    return np.asarray(eigenvalues, dtype=np.float64), np.asarray(
-        eigenvectors, dtype=np.complex128), _describe_jax_device(actual_device)
+    eigenvectors_array = None
+    if eigenvectors is not None:
+        eigenvectors_array = np.asarray(eigenvectors, dtype=np.complex128)
+
+    return np.asarray(eigenvalues, dtype=np.float64), eigenvectors_array, _describe_jax_device(actual_device)
 
 
 def _resolve_cpu_only_device(device, backend):
@@ -231,23 +255,16 @@ def _resolve_cpu_only_device(device, backend):
 
 def _resolve_torch_device(torch, device):
     has_cuda = torch.cuda.is_available()
-    has_mps = bool(
-        hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
-    )
 
     if device == "auto":
         if has_cuda:
             return "cuda"
-        if has_mps:
-            return "mps"
         return "cpu"
 
     if device == "gpu":
         if has_cuda:
             return "cuda"
-        if has_mps:
-            return "mps"
-        raise ValueError("torch backend requested a GPU device but no CUDA or MPS device is available")
+        raise ValueError("torch backend supports only CUDA GPU execution")
 
     if device == "cuda":
         if has_cuda:
@@ -255,9 +272,7 @@ def _resolve_torch_device(torch, device):
         raise ValueError("torch backend requested CUDA but no CUDA device is available")
 
     if device == "mps":
-        if has_mps:
-            return "mps"
-        raise ValueError("torch backend requested MPS but no MPS device is available")
+        raise ValueError("torch backend does not support MPS eigendecomposition")
 
     return "cpu"
 
@@ -293,7 +308,7 @@ def _resolve_jax_device(jax, device):
 
     requested_platforms = {
         "cuda": {"gpu", "cuda", "rocm"},
-        "mps": {"metal", "mps", "gpu"},
+        "mps": {"metal", "mps"},
     }
     matching_devices = [
         d for d in accelerator_devices

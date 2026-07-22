@@ -15,6 +15,8 @@ def sample_mbldtc_angles(systemsize, rng=None):
 
     phi_z = np.asarray(rng.random(systemsize), dtype=float) * np.pi
     phi_zz = np.asarray(rng.random(systemsize - 1), dtype=float) * np.pi
+    _validate_finite_array(phi_z, "phi_z")
+    _validate_finite_array(phi_zz, "phi_zz")
     return phi_z, phi_zz
 
 
@@ -32,13 +34,13 @@ def build_mbldtc_floquet_circuit(
     ZZ interactions. This is already gate-native and does not require
     Trotterization.
     """
-    QuantumCircuit = _require_quantum_circuit()
     _validate_systemsize(systemsize)
     _validate_positive_integer(cycles, "cycles")
 
     phi_z = _as_real_vector(phi_z, systemsize, "phi_z")
     phi_zz = _as_real_vector(phi_zz, systemsize - 1, "phi_zz")
-    theta_x = float(theta_x)
+    theta_x = _as_finite_real(theta_x, "theta_x")
+    QuantumCircuit = _require_quantum_circuit()
 
     circuit = QuantumCircuit(systemsize, name="mbldtc_floquet")
 
@@ -88,17 +90,19 @@ def build_mbl_trotter_step_circuit(
     The diagonal Z/ZZ sector is implemented with ``rz`` and ``rzz`` gates, and
     the transverse X sector is implemented with ``rx`` gates.
     """
-    QuantumCircuit = _require_quantum_circuit()
     _validate_systemsize(systemsize)
     _validate_trotter_order(trotter_order)
 
     jInt_samples = _as_real_vector(jInt_samples, systemsize - 1, "jInt_samples")
     bField_samples = _as_real_vector(bField_samples, systemsize, "bField_samples")
     theta_samples = _as_real_vector(theta_samples, systemsize, "theta_samples")
-    time_step = float(time_step)
+    time_step = _as_finite_real(time_step, "time_step")
 
     hx_terms = bField_samples * np.sin(theta_samples)
     hz_terms = bField_samples * np.cos(theta_samples)
+    _validate_finite_array(hx_terms, "transverse field terms")
+    _validate_finite_array(hz_terms, "longitudinal field terms")
+    QuantumCircuit = _require_quantum_circuit()
 
     circuit = QuantumCircuit(systemsize, name="mbl_trotter_step")
 
@@ -129,12 +133,17 @@ def build_mbl_trotter_circuit(
         trotter_order=2,
         insert_barriers=False):
     """Build a Trotterized Qiskit circuit for the MBL time-evolution operator."""
-    QuantumCircuit = _require_quantum_circuit()
     _validate_systemsize(systemsize)
     _validate_positive_integer(trotter_steps, "trotter_steps")
+    _validate_trotter_order(trotter_order)
+    time = _as_finite_real(time, "time")
+    jInt_samples = _as_real_vector(jInt_samples, systemsize - 1, "jInt_samples")
+    bField_samples = _as_real_vector(bField_samples, systemsize, "bField_samples")
+    theta_samples = _as_real_vector(theta_samples, systemsize, "theta_samples")
 
+    QuantumCircuit = _require_quantum_circuit()
     circuit = QuantumCircuit(systemsize, name="mbl_time_evolution")
-    time_step = float(time) / trotter_steps
+    time_step = time / trotter_steps
 
     for ix_step in range(trotter_steps):
         step_circuit = build_mbl_trotter_step_circuit(
@@ -175,16 +184,20 @@ def build_mbl_trotter_circuit_from_model(
 
 def _append_mbl_diagonal_layer(circuit, hz_terms, jInt_samples, time_step):
     systemsize = circuit.num_qubits
+    rz_angles = 2.0 * hz_terms * time_step
+    rzz_angles = 2.0 * jInt_samples * time_step
+    _validate_finite_array(rz_angles, "rz angles")
+    _validate_finite_array(rzz_angles, "rzz angles")
 
-    for ix_site, hz_term in enumerate(hz_terms):
+    for ix_site, angle in enumerate(rz_angles):
         circuit.rz(
-            2.0 * hz_term * time_step,
+            angle,
             _qiskit_qubit(systemsize, ix_site),
         )
 
-    for ix_site, coupling in enumerate(jInt_samples):
+    for ix_site, angle in enumerate(rzz_angles):
         circuit.rzz(
-            2.0 * coupling * time_step,
+            angle,
             _qiskit_qubit(systemsize, ix_site),
             _qiskit_qubit(systemsize, ix_site + 1),
         )
@@ -192,10 +205,12 @@ def _append_mbl_diagonal_layer(circuit, hz_terms, jInt_samples, time_step):
 
 def _append_mbl_x_layer(circuit, hx_terms, time_step):
     systemsize = circuit.num_qubits
+    rx_angles = 2.0 * hx_terms * time_step
+    _validate_finite_array(rx_angles, "rx angles")
 
-    for ix_site, hx_term in enumerate(hx_terms):
+    for ix_site, angle in enumerate(rx_angles):
         circuit.rx(
-            2.0 * hx_term * time_step,
+            angle,
             _qiskit_qubit(systemsize, ix_site),
         )
 
@@ -221,7 +236,7 @@ def _validate_systemsize(systemsize):
 
 
 def _validate_positive_integer(value, name):
-    if int(value) != value or int(value) <= 0:
+    if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or value <= 0:
         raise ValueError("%s must be a positive integer" % name)
 
 
@@ -231,13 +246,42 @@ def _validate_trotter_order(trotter_order):
 
 
 def _as_real_vector(values, expected_length, name):
-    array = np.asarray(values, dtype=float)
+    array = np.asarray(values)
     if array.shape != (expected_length,):
         raise ValueError(
             "%s must have shape (%d,), got %s"
             % (name, expected_length, array.shape)
         )
+    if np.iscomplexobj(array) or any(np.iscomplexobj(value) for value in array.flat):
+        raise ValueError("%s must contain real values" % name)
+
+    try:
+        array = np.asarray(array, dtype=float)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("%s must contain real numeric values" % name) from exc
+
+    _validate_finite_array(array, name)
     return array
+
+
+def _as_finite_real(value, name):
+    array = np.asarray(value)
+    if array.ndim != 0 or np.iscomplexobj(array):
+        raise ValueError("%s must be a finite real scalar" % name)
+
+    try:
+        value = float(array)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("%s must be a finite real scalar" % name) from exc
+
+    if not np.isfinite(value):
+        raise ValueError("%s must be a finite real scalar" % name)
+    return value
+
+
+def _validate_finite_array(array, name):
+    if not np.isfinite(array).all():
+        raise ValueError("%s must contain only finite values" % name)
 
 
 __all__ = [

@@ -48,7 +48,6 @@ def build_qmbs_parser():
         choices=EIGENSOLVER_DEVICE_CHOICES,
         default="auto",
     )
-
     return argument_parser
 
 
@@ -72,6 +71,7 @@ def build_mbldtc_parser():
         choices=EIGENSOLVER_DEVICE_CHOICES,
         default="auto",
     )
+    argument_parser.add_argument("--seed", type=_integer_at_least(0))
 
     return argument_parser
 
@@ -107,5 +107,6 @@ def build_mbl_parser(
         choices=EIGENSOLVER_DEVICE_CHOICES,
         default="auto",
     )
+    argument_parser.add_argument("--seed", type=_integer_at_least(0))
 
     return argument_parser

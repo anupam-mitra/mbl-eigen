@@ -6,11 +6,18 @@ import numpy as np
 import qutip
 
 from mbl_eigen import level_repulsion
+from mbl_eigen.cli import build_mbldtc_parser
 from mbl_eigen.cli import build_mbl_parser
 from mbl_eigen.cli import build_qmbs_parser
+from mbl_eigen.eigensolver import solve_general_eigenproblem
+from mbl_eigen.eigensolver import solve_hermitian_eigenproblem
+from mbl_eigen.eigensolver import _resolve_jax_device
 from mbl_eigen.mbl_app import _compute_overlap_matrix
+from mbl_eigen.mbl_app import _time_grid
 from mbl_eigen.mbl_model import build_mbl_hamiltonian
+from mbl_eigen.mbl_model import sample_mbl_disorder
 from mbl_eigen.mbl_model import spin_operators
+from mbl_eigen.qiskit_propagators import sample_mbldtc_angles
 
 
 class HighPriorityFixTests(unittest.TestCase):
@@ -56,6 +63,94 @@ class HighPriorityFixTests(unittest.TestCase):
                     "--anglePolarPiMin", "0",
                     "--anglePolarPiMax", "1",
                 ])
+
+    def test_seed_is_available_on_random_workflow_parsers(self):
+        mbldtc_args = build_mbldtc_parser().parse_args([
+            "--systemsize", "2",
+            "--thetaXPi", "0.76",
+            "--seed", "123",
+        ])
+        mbl_args = build_mbl_parser().parse_args([
+            "--systemsize", "2",
+            "--tduration", "1",
+            "--jIntMean", "1",
+            "--bFieldMean", "1",
+            "--jIntStd", "1",
+            "--bFieldStd", "1",
+            "--anglePolarPiMin", "0",
+            "--anglePolarPiMax", "1",
+            "--seed", "123",
+        ])
+        self.assertEqual(mbldtc_args.seed, 123)
+        self.assertEqual(mbl_args.seed, 123)
+
+    def test_seeded_mbl_disorder_is_reproducible(self):
+        kwargs = dict(
+            systemsize=3,
+            jIntMean=1.0,
+            jIntStd=0.2,
+            bFieldMean=1.0,
+            bFieldStd=0.2,
+            anglePolarPiMin=0.0,
+            anglePolarPiMax=1.0,
+        )
+        first = sample_mbl_disorder(rng=np.random.default_rng(123), **kwargs)
+        second = sample_mbl_disorder(rng=np.random.default_rng(123), **kwargs)
+        for first_values, second_values in zip(first, second):
+            np.testing.assert_array_equal(first_values, second_values)
+
+    def test_seeded_mbldtc_angles_are_reproducible(self):
+        first = sample_mbldtc_angles(3, rng=np.random.default_rng(123))
+        second = sample_mbldtc_angles(3, rng=np.random.default_rng(123))
+        for first_values, second_values in zip(first, second):
+            np.testing.assert_array_equal(first_values, second_values)
+
+    def test_time_grid_uses_requested_duration(self):
+        times = _time_grid(1.0)
+        self.assertEqual(len(times), 17)
+        self.assertAlmostEqual(times[-1], 1.0)
+
+    def test_eigenvalue_only_paths_return_no_vectors(self):
+        operator = qutip.Qobj([[1.0, 0.2], [0.2, 2.0]])
+        with_vectors = solve_hermitian_eigenproblem(
+            operator, backend="qobj", return_eigenvectors=True)
+        without_vectors = solve_hermitian_eigenproblem(
+            operator, backend="qobj", return_eigenvectors=False)
+        np.testing.assert_allclose(
+            without_vectors.eigenvalues, with_vectors.eigenvalues)
+        self.assertIsNone(without_vectors.eigenvectors_array)
+
+        general_without_vectors = solve_general_eigenproblem(
+            operator, backend="qobj", return_eigenvectors=False)
+        self.assertIsNone(general_without_vectors.eigenvectors_array)
+
+    def test_torch_mps_is_rejected(self):
+        try:
+            import torch
+        except ImportError:
+            self.skipTest("torch extra is not installed")
+
+        with self.assertRaisesRegex(ValueError, "does not support MPS"):
+            solve_hermitian_eigenproblem(
+                qutip.qeye(2), backend="torch", device="mps",
+                return_eigenvectors=False)
+
+    def test_jax_mps_requires_metal_platform(self):
+        class Device:
+            def __init__(self, platform):
+                self.platform = platform
+
+        class FakeJax:
+            def __init__(self, platforms):
+                self._devices = [Device(platform) for platform in platforms]
+
+            def devices(self):
+                return self._devices
+
+        metal = _resolve_jax_device(FakeJax(["cpu", "metal"]), "mps")
+        self.assertEqual(metal.platform, "metal")
+        with self.assertRaises(ValueError):
+            _resolve_jax_device(FakeJax(["cpu", "gpu"]), "mps")
 
     def test_overlap_matrix_has_all_channel_blocks_initialized(self):
         _, sigmax, sigmay, sigmaz = spin_operators()
@@ -126,6 +221,29 @@ class QiskitOrderingTests(unittest.TestCase):
             np.linalg.norm(qiskit_operator - quutip_operator),
             1.0e-6,
         )
+
+    def test_qiskit_rejects_invalid_real_inputs(self):
+        common = dict(
+            systemsize=2,
+            jInt_samples=np.array([0.2]),
+            bField_samples=np.array([0.4, 0.9]),
+            theta_samples=np.array([0.1, 0.5]),
+            time=0.1,
+        )
+        with self.assertRaises(ValueError):
+            build_mbl_trotter_circuit(
+                **{**common, "bField_samples": np.array([np.nan, 0.9])})
+        with self.assertRaises(ValueError):
+            build_mbl_trotter_circuit(
+                **{**common, "theta_samples": np.array([1.0 + 0.0j, 0.5])})
+        with self.assertRaises(ValueError):
+            build_mbl_trotter_circuit(**{**common, "time": np.inf})
+        with self.assertRaises(ValueError):
+            build_mbldtc_floquet_circuit(
+                2, np.nan, np.array([0.1, 0.2]), np.array([0.3]))
+        with self.assertRaises(ValueError):
+            build_mbldtc_floquet_circuit(
+                2, 0.1, np.array([0.1, 0.2]), np.array([0.3]), cycles=1.0)
 
     def test_mbldtc_circuit_matches_quutip_tensor_order(self):
         systemsize = 3

@@ -8,6 +8,7 @@ from qutip.qip.operations import expand_operator
 from . import eigensolver
 from . import level_repulsion
 from . import output_names
+from .qiskit_propagators import sample_mbldtc_angles
 
 
 """
@@ -16,9 +17,13 @@ Generating the Floquet operator for MBL-DTC,
 """
 
 
-def run_mbldtc(args):
+def run_mbldtc(args, rng=None):
     systemsize = args.systemsize
     thetaXPi = args.thetaXPi
+
+    if rng is None:
+        seed = getattr(args, "seed", None)
+        rng = None if seed is None else np.random.default_rng(seed)
 
     sigmax = qutip.sigmax()
     sigmay = qutip.sigmay()
@@ -27,8 +32,7 @@ def run_mbldtc(args):
     sigmaz_sigmaz = qutip.tensor(sigmaz, sigmaz)
 
     theta_x = np.pi * thetaXPi
-    phi_z = [np.random.rand() * np.pi for ix_site in range(systemsize)]
-    phi_zz = [np.random.rand() * np.pi for ix_site in range(systemsize - 1)]
+    phi_z, phi_zz = sample_mbldtc_angles(systemsize, rng=rng)
 
     ## Generating Floquet operator
     rotation_x = (-1j * theta_x * 0.5 * sigmax).expm()
@@ -117,3 +121,4 @@ def run_mbldtc(args):
 
     plt.tight_layout()
     plt.savefig(output_names.mbldtc_plot_name(systemsize=systemsize, theta_x=theta_x))
+    plt.close(fig)

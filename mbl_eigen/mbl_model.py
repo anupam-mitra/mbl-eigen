@@ -33,17 +33,20 @@ def sample_mbl_disorder(
         bFieldMean,
         bFieldStd,
         anglePolarPiMin,
-        anglePolarPiMax):
+        anglePolarPiMax,
+        rng=None):
     jInt_samples = scipy.stats.norm.rvs(
-        size=(systemsize - 1), loc=jIntMean, scale=jIntStd)
+        size=(systemsize - 1), loc=jIntMean, scale=jIntStd, random_state=rng)
 
     bField_samples = scipy.stats.norm.rvs(
-        size=systemsize, loc=bFieldMean, scale=bFieldStd)
+        size=systemsize, loc=bFieldMean, scale=bFieldStd, random_state=rng)
 
     theta_samples = scipy.stats.uniform.rvs(
         size=systemsize,
         loc=anglePolarPiMin * np.pi,
-        scale=(anglePolarPiMax - anglePolarPiMin) * np.pi,)
+        scale=(anglePolarPiMax - anglePolarPiMin) * np.pi,
+        random_state=rng,
+    )
 
     return jInt_samples, bField_samples, theta_samples
 
@@ -100,7 +103,8 @@ def build_mbl_model(
         bFieldMean,
         bFieldStd,
         anglePolarPiMin,
-        anglePolarPiMax):
+        anglePolarPiMax,
+        rng=None):
     sigma0, sigmax, sigmay, sigmaz = spin_operators()
     jInt_samples, bField_samples, theta_samples = sample_mbl_disorder(
         systemsize=systemsize,
@@ -110,6 +114,7 @@ def build_mbl_model(
         bFieldStd=bFieldStd,
         anglePolarPiMin=anglePolarPiMin,
         anglePolarPiMax=anglePolarPiMax,
+        rng=rng,
     )
 
     hamiltonian = build_mbl_hamiltonian(

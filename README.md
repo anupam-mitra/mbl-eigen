@@ -93,10 +93,11 @@ Common CLI behavior:
   passed.
 - Physics flags are required. Parsers reject omitted values and invalid system
   sizes with a clean `argparse` usage error.
+- `main_mbl.py`, `main_mbl_dynamics.py`, and `main_mbl_propagator.py` accept
+  `--seed` for reproducible disorder.
 - Output files are written to the repository root, not to `Plots/`.
-- Several workflows draw random samples with `np.random.rand` or
-  `scipy.stats.*.rvs` and do not seed the RNG, so results and many filenames are
-  intentionally nondeterministic.
+- Without `--seed`, disorder remains nondeterministic. UUID output names remain
+  nondeterministic even when physics sampling is seeded.
 
 ## QMBS CLI
 
@@ -168,6 +169,7 @@ python3 main_mbldtc.py --systemsize=8 --thetaXPi=0.76
 | `--thetaXPi` | `float` | Global transverse rotation angle in units of `pi`; the implementation uses `theta_x = pi * thetaXPi` |
 | `--eigenBackend` | `str` | General eigensolver backend; the current implementation supports only `qobj` |
 | `--eigenDevice` | `str` | Requested solver device: `auto`, `cpu`, `gpu`, `cuda`, or `mps`; only CPU is currently meaningful for `qobj` |
+| `--seed` | `int` | Optional random seed for disorder angles |
 
 ### Outputs
 
@@ -188,6 +190,7 @@ The UUID suffix makes repeated runs intentionally produce different filenames.
 - Each gate is expanded with `qutip.qip.operations.expand_operator`.
 - The Floquet operator is diagonalized and its eigenphases are analyzed.
 - The adjacent-level-spacing ratio is computed from the Floquet eigenphases.
+- Use `--seed` to reproduce sampled disorder angles.
 - One complex-plane eigenvalue plot is saved.
 
 ## MBL CLI
@@ -212,6 +215,7 @@ python3 main_mbl.py --systemsize=12 --tduration=1.0 --jIntMean=1.0 --bFieldMean=
 | `--anglePolarPiMax` | `float` | Upper bound of the polar-angle sampling interval, in units of `pi` |
 | `--eigenBackend` | `str` | Hermitian eigensolver backend: `qobj`, `numpy`, `scipy`, `torch`, or `jax` |
 | `--eigenDevice` | `str` | Requested solver device: `auto`, `cpu`, `gpu`, `cuda`, or `mps` |
+| `--seed` | `int` | Optional random seed for disorder |
 
 ### Outputs
 
@@ -238,6 +242,7 @@ The UUID suffix makes repeated runs intentionally produce different filenames.
   `qutip.ptrace(...)` and `qutip.entropy_vn(...)`.
 - It computes spacing ratios for both the Hamiltonian spectrum and the derived
   unitary eigenphases.
+- Use `--seed` to reproduce disorder samples.
 
 ## MBL Dynamics CLI
 
@@ -251,11 +256,6 @@ python3 main_mbl_dynamics.py --systemsize=12 --tduration=1.0 --jIntMean=1.0 --bF
 
 `main_mbl_dynamics.py` accepts the same flags as `main_mbl.py`, including
 `--eigenBackend` and `--eigenDevice`.
-
-Important behavior note:
-
-- `--tduration` is accepted for CLI compatibility but the current implementation
-  does not use it. The time grid is hard-coded inside `mbl_eigen.mbl_app.run_mbl_dynamics(...)`.
 
 ### Outputs
 
@@ -280,8 +280,8 @@ It also prints the following intermediate values to standard output:
   `qutip.ket('1' * systemsize)`.
 - The script expands the initial state in the Hamiltonian eigenbasis with
   `v.overlap(ket_initial)`.
-- The return amplitude is evaluated on the fixed grid
-  `np.arange(0.0, 10.0625, 0.0625)`.
+- The return amplitude is evaluated from `0` through `--tduration` with a
+  nominal `0.0625` time spacing.
 - The plotted quantity is `-log(|A(t)|^2) / systemsize`.
 
 ## MBL Propagator CLI
@@ -301,12 +301,6 @@ Default backend note:
 - `main_mbl_propagator.py` defaults to `--eigenBackend=numpy` to preserve the
   previous dense-matrix diagonalization path.
 
-Important behavior note:
-
-- `--tduration` is accepted for CLI compatibility but the current implementation
-  does not use it. The time grid is hard-coded inside
-  `mbl_eigen.mbl_app.run_mbl_propagator(...)`.
-
 ### Outputs
 
 - No plot is saved.
@@ -322,8 +316,8 @@ Important behavior note:
 - Local `sigma_x`, `sigma_y`, and `sigma_z` operators are expanded to every site,
   normalized by `sqrt(2**systemsize)`, and rotated into the Hamiltonian
   eigenbasis.
-- The code evolves those operators on the fixed grid
-  `np.arange(0.0, 1.0625, 0.0625)`.
+- The code evolves those operators from `0` through `--tduration` with a
+  nominal `0.0625` time spacing.
 - It then computes the overlap matrix between the initial and time-evolved
   operators for all `x`, `y`, and `z` channels.
 
@@ -357,7 +351,7 @@ parser.
 - `mbl_eigen.mbl_model.spin_operators()`
 - `mbl_eigen.mbl_model.sample_mbl_disorder(...)`
 - `mbl_eigen.mbl_model.build_mbl_hamiltonian(...)`
-- `mbl_eigen.mbl_model.build_mbl_model(...)`
+- `mbl_eigen.mbl_model.build_mbl_model(..., rng=None)`
 - `mbl_eigen.eigensolver.solve_hermitian_eigenproblem(...)`
 - `mbl_eigen.eigensolver.solve_general_eigenproblem(...)`
 
@@ -476,11 +470,10 @@ Important implementation-specific details:
 - `qutip-qip` is required because the code expands local operators and gates
   with `qutip.qip.operations.expand_operator`.
 - Hermitian eigenvalue calculations now pass through `mbl_eigen.eigensolver`,
-  which supports `Qobj.eigenstates()`, `numpy.linalg.eigh`,
-  `scipy.linalg.eigh`, `torch.linalg.eigh`, and `jax.numpy.linalg.eigh`.
-- The analysis CLIs expose both `--eigenBackend` and `--eigenDevice`, so CUDA or
-  MPS requests can be made directly when the selected backend and local runtime
-  support them.
+  which supports QuTiP, NumPy, SciPy, Torch, and JAX. Eigenvalue-only requests
+  use each backend's value-only routine.
+- Torch uses CPU or CUDA; its MPS eigendecomposition path is rejected. JAX
+  matches explicit `cuda` and `mps` requests to their platform.
 - `torch` and `jax` are optional extras and are imported lazily only when their
   backends are selected.
 - The Qiskit circuit layer is separate from the eigensolver abstraction. It
@@ -490,9 +483,7 @@ Important implementation-specific details:
   random-field model setup in each script.
 - The output naming logic is centralized so the shim scripts preserve the same
   filename conventions as before the refactor.
-- `main_mbl_dynamics.py` and `main_mbl_propagator.py` still expose the same CLI
-  surface as `main_mbl.py` even though `--tduration` is not currently consumed
-  by those implementations.
+- MBL dynamics and propagator time grids end at their required `--tduration`.
 
 ## Benchmarking
 
@@ -510,7 +501,11 @@ documented there.
 
 ## Verification
 
-There is no automated test suite in this repository.
+Regression tests live in `tests/` and run with:
+
+```bash
+python3 -m unittest discover -s tests
+```
 
 A fast syntax check after edits is:
 
