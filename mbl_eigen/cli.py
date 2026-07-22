@@ -8,6 +8,25 @@ from .eigensolver import HERMITIAN_EIGEN_BACKENDS
 COMMON_DESCRIPTION = "Plots eigenphases of the time evolution operator under a PXP like Hamiltonian"
 
 
+def _integer_at_least(minimum):
+    def parse(value):
+        try:
+            parsed = int(value)
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError(
+                "expected an integer"
+            ) from exc
+
+        if parsed < minimum:
+            raise argparse.ArgumentTypeError(
+                "expected an integer >= %d" % minimum
+            )
+
+        return parsed
+
+    return parse
+
+
 def build_qmbs_parser():
     argument_parser = argparse.ArgumentParser(
         prog="main_qmbs.py",
@@ -15,9 +34,10 @@ def build_qmbs_parser():
         epilog="",
     )
 
-    argument_parser.add_argument("--systemsize", type=int)
-    argument_parser.add_argument("--tduration", type=float)
-    argument_parser.add_argument("--Delta", type=float)
+    argument_parser.add_argument(
+        "--systemsize", type=_integer_at_least(2), required=True)
+    argument_parser.add_argument("--tduration", type=float, required=True)
+    argument_parser.add_argument("--Delta", type=float, required=True)
     argument_parser.add_argument(
         "--eigenBackend",
         choices=HERMITIAN_EIGEN_BACKENDS,
@@ -39,8 +59,9 @@ def build_mbldtc_parser():
         epilog="",
     )
 
-    argument_parser.add_argument("--systemsize", type=int)
-    argument_parser.add_argument("--thetaXPi", type=float)
+    argument_parser.add_argument(
+        "--systemsize", type=_integer_at_least(1), required=True)
+    argument_parser.add_argument("--thetaXPi", type=float, required=True)
     argument_parser.add_argument(
         "--eigenBackend",
         choices=GENERAL_EIGEN_BACKENDS,
@@ -65,14 +86,17 @@ def build_mbl_parser(
         epilog="",
     )
 
-    argument_parser.add_argument("--systemsize", type=int)
-    argument_parser.add_argument("--tduration", type=float)
-    argument_parser.add_argument("--jIntMean", type=float)
-    argument_parser.add_argument("--bFieldMean", type=float)
-    argument_parser.add_argument("--jIntStd", type=float)
-    argument_parser.add_argument("--bFieldStd", type=float)
-    argument_parser.add_argument("--anglePolarPiMin", type=float)
-    argument_parser.add_argument("--anglePolarPiMax", type=float)
+    argument_parser.add_argument(
+        "--systemsize", type=_integer_at_least(1), required=True)
+    argument_parser.add_argument("--tduration", type=float, required=True)
+    argument_parser.add_argument("--jIntMean", type=float, required=True)
+    argument_parser.add_argument("--bFieldMean", type=float, required=True)
+    argument_parser.add_argument("--jIntStd", type=float, required=True)
+    argument_parser.add_argument("--bFieldStd", type=float, required=True)
+    argument_parser.add_argument(
+        "--anglePolarPiMin", type=float, required=True)
+    argument_parser.add_argument(
+        "--anglePolarPiMax", type=float, required=True)
     argument_parser.add_argument(
         "--eigenBackend",
         choices=HERMITIAN_EIGEN_BACKENDS,

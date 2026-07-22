@@ -67,10 +67,13 @@ def run_mbl(args):
     ## Eigenphases
     eigenvalues_unitary = np.exp(-1j * eigenvalues * tduration)
 
-    eigenphases = np.sort([(np.angle(v) % 2.0 * np.pi) for v in eigenvalues_unitary])
+    eigenphases = np.sort(np.mod(np.angle(eigenvalues_unitary), 2.0 * np.pi))
 
     ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
-            eigenphases, fraction_cutoff=0.0, use_spacing=True)
+            eigenphases,
+            fraction_cutoff=0.0,
+            use_spacing=True,
+            circular_period=2.0 * np.pi)
 
     logging.info("ratio = %g" % (ratio))
 
@@ -272,31 +275,48 @@ def run_mbl_propagator(args):
     logging.info("sigmay time evolved: \n %s \n" % (sigmay_time_evolved_array[0, -1],))
     logging.info("sigmaz time evolved: \n %s \n" % (sigmaz_time_evolved_array[0, -1],))
 
-    overlap_matrix = np.empty((3 * systemsize, 3 * systemsize, len(times_array)), dtype=complex)
-
-    for ix_time, t in enumerate(times_array):
-        for ix_site_initial in range(systemsize):
-            for ix_site_final in range(systemsize):
-
-                op_initial = qutip.Qobj(sigmax_array[ix_site_initial], dims=hamiltonian.dims)
-                op_final = qutip.Qobj(sigmax_time_evolved_array[ix_site_final, ix_time], dims=hamiltonian.dims)
-
-                logging.info("op_initial type = %s" % type(op_initial))
-                logging.info("op_final type = %s" % type(op_final))
-
-                overlap = (op_initial * op_final).tr()
-                overlap_matrix[ix_site_initial, ix_site_final, ix_time] = overlap
-
-                op_initial = qutip.Qobj(sigmay_array[ix_site_initial], dims=hamiltonian.dims)
-                op_final = qutip.Qobj(sigmay_time_evolved_array[ix_site_final, ix_time], dims=hamiltonian.dims)
-
-                overlap = (op_initial * op_final).tr()
-                overlap_matrix[systemsize + ix_site_initial, systemsize + ix_site_final, ix_time] = overlap
-
-                op_initial = qutip.Qobj(sigmaz_array[ix_site_initial], dims=hamiltonian.dims)
-                op_final = qutip.Qobj(sigmaz_time_evolved_array[ix_site_final, ix_time], dims=hamiltonian.dims)
-
-                overlap = (op_initial * op_final).tr()
-                overlap_matrix[2 * systemsize + ix_site_initial, 2 * systemsize + ix_site_final, ix_time] = overlap
+    overlap_matrix = _compute_overlap_matrix(
+        initial_operator_arrays=(sigmax_array, sigmay_array, sigmaz_array),
+        time_evolved_operator_arrays=(
+            sigmax_time_evolved_array,
+            sigmay_time_evolved_array,
+            sigmaz_time_evolved_array,
+        ),
+        hamiltonian_dims=hamiltonian.dims,
+    )
 
     logging.info("overlap_matrix = \n%s" % (np.round(overlap_matrix[:, :, -1], 4),))
+
+
+def _compute_overlap_matrix(
+        initial_operator_arrays,
+        time_evolved_operator_arrays,
+        hamiltonian_dims):
+    systemsize = initial_operator_arrays[0].shape[0]
+    times_count = time_evolved_operator_arrays[0].shape[1]
+    overlap_matrix = np.empty(
+        (3 * systemsize, 3 * systemsize, times_count),
+        dtype=complex,
+    )
+
+    for ix_time in range(times_count):
+        for ix_channel_initial in range(3):
+            for ix_channel_final in range(3):
+                for ix_site_initial in range(systemsize):
+                    for ix_site_final in range(systemsize):
+                        op_initial = qutip.Qobj(
+                            initial_operator_arrays[ix_channel_initial][ix_site_initial],
+                            dims=hamiltonian_dims,
+                        )
+                        op_final = qutip.Qobj(
+                            time_evolved_operator_arrays[ix_channel_final][
+                                ix_site_final, ix_time],
+                            dims=hamiltonian_dims,
+                        )
+                        overlap_matrix[
+                            ix_channel_initial * systemsize + ix_site_initial,
+                            ix_channel_final * systemsize + ix_site_final,
+                            ix_time,
+                        ] = (op_initial * op_final).tr()
+
+    return overlap_matrix

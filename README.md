@@ -91,9 +91,8 @@ Common CLI behavior:
   diagonalizes a general unitary Floquet operator rather than a Hermitian matrix.
 - `qobj`, `numpy`, and `scipy` remain CPU-only even when `--eigenDevice` is
   passed.
-- The parsers do not mark flags as `required=True`. If a flag is omitted, the
-  script usually fails later with `None`-driven runtime errors instead of a
-  clean `argparse` usage error.
+- Physics flags are required. Parsers reject omitted values and invalid system
+  sizes with a clean `argparse` usage error.
 - Output files are written to the repository root, not to `Plots/`.
 - Several workflows draw random samples with `np.random.rand` or
   `scipy.stats.*.rvs` and do not seed the RNG, so results and many filenames are
@@ -376,6 +375,8 @@ These builders target gate-based quantum computers directly:
   `rx`, `rz`, and `rzz` gates.
 - The MBL-DTC Floquet operator is an exact gate-native circuit built from
   `rx`, `rz`, and `rzz` layers.
+- Qiskit qubits are mapped in reverse order so circuit matrices use the same
+  site ordering as QuTiP tensor operators.
 
 Example:
 

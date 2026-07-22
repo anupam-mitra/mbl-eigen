@@ -127,8 +127,10 @@ def run_qmbs(args):
     logging.info(eigenvalues)
 
     logging.info("----- Eigenphases -----")
-    eigenphases = np.sort([(np.angle(v) % 2.0 * np.pi) for v in eigenvalues_unitary])
-    eigenphases_pxp = np.sort([(np.angle(v) % 2.0 * np.pi) for v in eigenvalues_pxp_unitary])
+    eigenphases = np.mod(np.angle(eigenvalues_unitary), 2.0 * np.pi)
+    eigenphases_pxp = np.mod(np.angle(eigenvalues_pxp_unitary), 2.0 * np.pi)
+    eigenphases.sort()
+    eigenphases_pxp.sort()
 
     logging.info("Eigenphases(U) = %s" % ([np.angle(v) / np.pi for v in eigenvalues_unitary],))
     logging.info("Eigenphases(U_PXP) = %s" % ([np.angle(v) / np.pi for v in eigenvalues_pxp_unitary],))
@@ -136,10 +138,16 @@ def run_qmbs(args):
     logging.info("SortedEigenphases(U) = %s" % (np.sort([np.angle(v) / np.pi for v in eigenvalues_unitary]),))
 
     ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
-            eigenphases, fraction_cutoff=0.0, use_spacing=True)
+            eigenphases,
+            fraction_cutoff=0.0,
+            use_spacing=True,
+            circular_period=2.0 * np.pi)
 
     ratio_pxp = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
-            eigenphases_pxp, fraction_cutoff=0.0, use_spacing=True)
+            eigenphases_pxp,
+            fraction_cutoff=0.0,
+            use_spacing=True,
+            circular_period=2.0 * np.pi)
 
     logging.info("ratio = %g, ratio_pxp = %g" % (ratio, ratio_pxp))
 

@@ -7,7 +7,8 @@ import numpy as np
 def calc_mean_adjacent_level_spacing_ratio(
         eigenvalues: np.ndarray,
         fraction_cutoff=0.02,
-        use_spacing=True):
+        use_spacing=True,
+        circular_period=None):
     """
     Calculates the mean adjacent level spacing ratio
 
@@ -19,6 +20,9 @@ def calc_mean_adjacent_level_spacing_ratio(
 
     fraction_cutoff: float
     Fraction of eigenvalues to skip
+
+    circular_period: float, optional
+    Period used to include wraparound spacing for circular spectra
 
     Returns
     ------
@@ -35,7 +39,15 @@ def calc_mean_adjacent_level_spacing_ratio(
     eigenvalues_bulk = eigenvalues[ix_start: ix_end]
 
     if use_spacing:
-        spacings: np.ndarray = np.diff(eigenvalues_bulk)
+        if circular_period is None:
+            spacings: np.ndarray = np.diff(eigenvalues_bulk)
+        else:
+            if len(eigenvalues_bulk) == 0:
+                return np.nan
+            spacings = np.diff(np.concatenate((
+                eigenvalues_bulk,
+                [eigenvalues_bulk[0] + circular_period],
+            )))
         logging.debug("spacings = %s" % spacings)
     else:
         spacings: np.ndarray = eigenvalues_bulk[np.abs(eigenvalues_bulk) > 1e-12]

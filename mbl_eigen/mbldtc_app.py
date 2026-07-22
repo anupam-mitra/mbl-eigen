@@ -93,7 +93,9 @@ def run_mbldtc(args):
 
     ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
             (eigenphases) % (2 * np.pi),
-            fraction_cutoff=0.0, use_spacing=True)
+            fraction_cutoff=0.0,
+            use_spacing=True,
+            circular_period=2.0 * np.pi)
 
     logging.info("ratio = %g" % (ratio,))
 

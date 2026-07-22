@@ -44,19 +44,26 @@ def build_mbldtc_floquet_circuit(
 
     for ix_cycle in range(cycles):
         for ix_site in range(systemsize):
-            circuit.rx(theta_x, ix_site)
+            circuit.rx(theta_x, _qiskit_qubit(systemsize, ix_site))
 
         if insert_barriers:
             circuit.barrier()
 
         for ix_site in range(systemsize):
-            circuit.rz(phi_z[ix_site], ix_site)
+            circuit.rz(
+                phi_z[ix_site],
+                _qiskit_qubit(systemsize, ix_site),
+            )
 
         if insert_barriers and systemsize > 1:
             circuit.barrier()
 
         for ix_site in range(systemsize - 1):
-            circuit.rzz(phi_zz[ix_site], ix_site, ix_site + 1)
+            circuit.rzz(
+                phi_zz[ix_site],
+                _qiskit_qubit(systemsize, ix_site),
+                _qiskit_qubit(systemsize, ix_site + 1),
+            )
 
         if insert_barriers and ix_cycle != cycles - 1:
             circuit.barrier()
@@ -167,16 +174,35 @@ def build_mbl_trotter_circuit_from_model(
 
 
 def _append_mbl_diagonal_layer(circuit, hz_terms, jInt_samples, time_step):
+    systemsize = circuit.num_qubits
+
     for ix_site, hz_term in enumerate(hz_terms):
-        circuit.rz(2.0 * hz_term * time_step, ix_site)
+        circuit.rz(
+            2.0 * hz_term * time_step,
+            _qiskit_qubit(systemsize, ix_site),
+        )
 
     for ix_site, coupling in enumerate(jInt_samples):
-        circuit.rzz(2.0 * coupling * time_step, ix_site, ix_site + 1)
+        circuit.rzz(
+            2.0 * coupling * time_step,
+            _qiskit_qubit(systemsize, ix_site),
+            _qiskit_qubit(systemsize, ix_site + 1),
+        )
 
 
 def _append_mbl_x_layer(circuit, hx_terms, time_step):
+    systemsize = circuit.num_qubits
+
     for ix_site, hx_term in enumerate(hx_terms):
-        circuit.rx(2.0 * hx_term * time_step, ix_site)
+        circuit.rx(
+            2.0 * hx_term * time_step,
+            _qiskit_qubit(systemsize, ix_site),
+        )
+
+
+def _qiskit_qubit(systemsize, site):
+    """Map QuTiP tensor site order to Qiskit's little-endian qubit order."""
+    return systemsize - 1 - site
 
 
 def _require_quantum_circuit():
