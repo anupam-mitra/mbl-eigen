@@ -3,7 +3,7 @@ from mbl_eigen.mbl_app import run_mbl_dynamics
 
 
 def main():
-    argument_parser = build_mbl_parser()
+    argument_parser = build_mbl_parser(prog="main_mbl_dynamics.py")
     run_mbl_dynamics(argument_parser.parse_args())
 
 

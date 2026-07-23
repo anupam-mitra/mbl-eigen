@@ -18,6 +18,7 @@ from mbl_eigen.mbl_model import build_mbl_hamiltonian
 from mbl_eigen.mbl_model import sample_mbl_disorder
 from mbl_eigen.mbl_model import spin_operators
 from mbl_eigen.qiskit_propagators import sample_mbldtc_angles
+from mbl_eigen.reflection import reflection_about_center
 
 
 class HighPriorityFixTests(unittest.TestCase):
@@ -109,6 +110,11 @@ class HighPriorityFixTests(unittest.TestCase):
         times = _time_grid(1.0)
         self.assertEqual(len(times), 17)
         self.assertAlmostEqual(times[-1], 1.0)
+
+    def test_single_site_reflection_is_identity(self):
+        swap = qutip.tensor(qutip.qeye(2), qutip.qeye(2))
+        reflection = reflection_about_center(1, swap)
+        self.assertTrue(reflection == qutip.qeye(2))
 
     def test_eigenvalue_only_paths_return_no_vectors(self):
         operator = qutip.Qobj([[1.0, 0.2], [0.2, 2.0]])

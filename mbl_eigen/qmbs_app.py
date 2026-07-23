@@ -22,7 +22,6 @@ def run_qmbs(args):
 
     sigma0 = qutip.qeye(2)
     sigmax = qutip.sigmax()
-    sigmay = qutip.sigmay()
     sigmaz = qutip.sigmaz()
 
     projector_g = (sigma0 + sigmaz) * 0.5

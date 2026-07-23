@@ -65,8 +65,6 @@ Run commands from the repository root so both the root shim scripts and
 - `mbl_eigen/reflection.py`: reflection-symmetry utilities.
 - `mbl_eigen/symmetry.py`: symmetry base classes.
 - `benchmarks/`: backend benchmark harness and benchmark-specific usage notes.
-- `level_repulsion.py`, `reflection.py`, `symmetry.py`: compatibility wrappers
-  that re-export the package implementations.
 
 ## CLI Overview
 
@@ -146,7 +144,7 @@ These names are stable for identical inputs because they do not include a UUID.
   - an Ising-like Hamiltonian with transverse drive, detuning, and nearest-neighbor blockade interaction
   - a constrained PXP Hamiltonian
 - The implementation uses `Omega = 1.0` and `Vrr = 100.0 * Omega`.
-- Both Hamiltonians are diagonalized with QuTiP.
+- Both Hamiltonians are diagonalized through the selected Hermitian backend.
 - The code converts the energy spectra into unitary eigenvalues with
   `np.exp(-1j * eigenvalues * tduration)`.
 - The helper `mbl_eigen.level_repulsion.calc_mean_adjacent_level_spacing_ratio`
@@ -237,7 +235,7 @@ The UUID suffix makes repeated runs intentionally produce different filenames.
   - transverse `x` terms scaled by `bField * sin(theta)`
   - longitudinal `z` terms scaled by `bField * cos(theta)`
   - nearest-neighbor `zz` couplings scaled by `jInt`
-- The script diagonalizes the Hamiltonian with QuTiP.
+- The script diagonalizes the Hamiltonian through the selected Hermitian backend.
 - It computes half-chain von Neumann entanglement entropies with
   `qutip.ptrace(...)` and `qutip.entropy_vn(...)`.
 - It computes spacing ratios for both the Hamiltonian spectrum and the derived
@@ -312,7 +310,7 @@ Default backend note:
 
 - The shared MBL Hamiltonian is converted to a dense array with
   `hamiltonian.full()`.
-- The Hamiltonian is diagonalized with `numpy.linalg.eigh(...)`.
+- The Hamiltonian uses the selected backend; the default is NumPy.
 - Local `sigma_x`, `sigma_y`, and `sigma_z` operators are expanded to every site,
   normalized by `sqrt(2**systemsize)`, and rotated into the Hamiltonian
   eigenbasis.
@@ -447,9 +445,6 @@ print(eigenvalues)
 - `mbl_eigen.symmetry.Symmetry`
 - `mbl_eigen.symmetry.Involution`
 
-The root `level_repulsion.py`, `reflection.py`, and `symmetry.py` files remain
-available as wrappers if older code imports them directly.
-
 ## Implementation Details
 
 The current execution flow is:
@@ -510,7 +505,7 @@ python3 -m unittest discover -s tests
 A fast syntax check after edits is:
 
 ```bash
-python3 -m compileall mbl_eigen main_*.py level_repulsion.py reflection.py symmetry.py
+python3 -m compileall mbl_eigen main_*.py
 ```
 
 When dependencies are installed, the most useful runtime verification is a

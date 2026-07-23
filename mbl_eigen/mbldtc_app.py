@@ -26,7 +26,6 @@ def run_mbldtc(args, rng=None):
         rng = None if seed is None else np.random.default_rng(seed)
 
     sigmax = qutip.sigmax()
-    sigmay = qutip.sigmay()
     sigmaz = qutip.sigmaz()
 
     sigmaz_sigmaz = qutip.tensor(sigmaz, sigmaz)

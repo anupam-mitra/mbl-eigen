@@ -99,6 +99,13 @@ def reflection_about_center(
     reflection_op: qutip.Qobj
     Reflection operator about the center
     """
+    if isinstance(n_sites, bool) or not isinstance(n_sites, (int, np.integer)):
+        raise ValueError("n_sites must be a positive integer")
+    if n_sites < 1:
+        raise ValueError("n_sites must be a positive integer")
+    if n_sites == 1:
+        return qutip.qeye(swap.dims[0][0])
+
     swap_op_array = np.empty((n_sites // 2,), dtype=object)
 
     for ix_site in range(n_sites // 2):
