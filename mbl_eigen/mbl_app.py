@@ -1,29 +1,32 @@
+"""MBL spectrum, dynamics, and propagator analysis workflows."""
+
 import logging
 
-import matplotlib.pyplot as plt
 import numpy as np
 import qutip
-from qutip.qip.operations import expand_operator
 
 from . import eigensolver
 from . import level_repulsion
 from . import output_names
+from .eigenphase import (
+    build_time_propagator_phases,
+    eigenvalues_to_unitary,
+    extract_sorted_eigenphases,
+)
 from .mbl_model import build_mbl_model
-
-
-"""
-Generating the PXP Hamiltonian from Rydberg blockade
-"""
+from .operators import build_site_operator_array, rotate_to_eigenbasis
+from .plotting import (
+    plot_eigenvector_entropy,
+    plot_eigenphases_unit_circle,
+    plot_return_rate,
+)
 
 
 def _rng_from_args(args, rng):
     if rng is not None:
         return rng
-
     seed = getattr(args, "seed", None)
-    if seed is None:
-        return None
-    return np.random.default_rng(seed)
+    return None if seed is None else np.random.default_rng(seed)
 
 
 def _build_model_from_args(args, rng=None):
@@ -40,263 +43,159 @@ def _build_model_from_args(args, rng=None):
 
 
 def run_mbl(args, rng=None):
+    """Run MBL spectrum and half-chain entanglement entropy analysis."""
     systemsize = args.systemsize
     tduration = args.tduration
-    jIntMean = args.jIntMean
-    jIntStd = args.jIntStd
-    bFieldMean = args.bFieldMean
-    bFieldStd = args.bFieldStd
-    anglePolarPiMin = args.anglePolarPiMin
-    anglePolarPiMax = args.anglePolarPiMax
-
     model = _build_model_from_args(args, _rng_from_args(args, rng))
 
-    logging.info("bField_samples = %s" % model.bField_samples)
-    logging.info("theta_samples = %s" % model.theta_samples)
-    logging.info("jInt_Samples = %s" % model.jInt_samples)
+    logging.info("bField_samples = %s", model.bField_samples)
+    logging.info("theta_samples = %s", model.theta_samples)
+    logging.info("jInt_samples = %s", model.jInt_samples)
 
-    ## Diagonalizing Hamiltonian
-    diagonalization = eigensolver.solve_hermitian_eigenproblem(
+    diag = eigensolver.solve_hermitian_eigenproblem(
         model.hamiltonian,
         backend=args.eigenBackend,
         device=args.eigenDevice,
     )
-    eigenvalues = diagonalization.eigenvalues
-    eigenvectors = diagonalization.as_qobj_kets()
+    eigenvalues = diag.eigenvalues
+    eigenvectors = diag.as_qobj_kets()
 
+    half_chain = list(range(systemsize >> 1))
     eigenvector_entropies = np.array([
-            qutip.entropy_vn(qutip.ptrace(v, [ix for ix in range(systemsize >> 1)]))
-                 for v in eigenvectors])
+        qutip.entropy_vn(qutip.ptrace(v, half_chain))
+        for v in eigenvectors
+    ])
+    logging.info("eigenvector_entropies.shape = %s", eigenvector_entropies.shape)
 
-    logging.info(eigenvector_entropies.shape)
-
-    ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
-            eigenvalues, fraction_cutoff=0.0, use_spacing=True)
-
-    logging.info("ratio = %g" % (ratio,))
-
-    ## Eigenphases
-    eigenvalues_unitary = np.exp(-1j * eigenvalues * tduration)
-
-    eigenphases = np.sort(np.mod(np.angle(eigenvalues_unitary), 2.0 * np.pi))
-
-    ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
-            eigenphases,
-            fraction_cutoff=0.0,
-            use_spacing=True,
-            circular_period=2.0 * np.pi)
-
-    logging.info("ratio = %g" % (ratio))
-
-    ## Plotting
-    ## Eigenvector entropy plot for the Ising Hamiltonian
-    fig, ax = plt.subplots(1, 1, figsize=(18.0 / 2.54, 12.0 / 2.54))
-
-    ax.set_xlabel(r'Energy')
-    ax.set_ylabel(r'$\mathcal{S}_1$')
-
-    ax.plot(eigenvalues,
-            eigenvector_entropies,
-            marker='o', markeredgecolor='k', markerfacecolor='blue',
-            ls='',
+    energy_ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
+        eigenvalues, fraction_cutoff=0.0, use_spacing=True
     )
-
-    ax.axhline(np.log(2) * (systemsize >> 1), ls='dotted', color='k')
-
-    plotfilename = output_names.mbl_entropy_plot_name(
-        systemsize=systemsize,
-        anglePolarPiMin=anglePolarPiMin,
-        anglePolarPiMax=anglePolarPiMax,
-        jIntMean=jIntMean,
-        jIntStd=jIntStd,
-        bFieldMean=bFieldMean,
-        bFieldStd=bFieldStd,
+    eigenvalues_unitary = eigenvalues_to_unitary(eigenvalues, tduration)
+    eigenphases = extract_sorted_eigenphases(eigenvalues_unitary)
+    phase_ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
+        eigenphases,
+        fraction_cutoff=0.0,
+        use_spacing=True,
+        circular_period=2.0 * np.pi,
     )
+    logging.info("ratio(energy) = %g", energy_ratio)
+    logging.info("ratio(eigenphase) = %g", phase_ratio)
 
-    fig.savefig(plotfilename)
-    plt.close()
+    plot_eigenvector_entropy(
+        eigenvalues,
+        eigenvector_entropies,
+        np.log(2) * (systemsize >> 1),
+        output_names.mbl_entropy_plot_name(
+            systemsize=systemsize,
+            anglePolarPiMin=args.anglePolarPiMin,
+            anglePolarPiMax=args.anglePolarPiMax,
+            jIntMean=args.jIntMean,
+            jIntStd=args.jIntStd,
+            bFieldMean=args.bFieldMean,
+            bFieldStd=args.bFieldStd,
+        ),
+    )
 
 
 def run_mbl_dynamics(args, rng=None):
+    """Run MBL return-rate dynamics and save a plot."""
     systemsize = args.systemsize
-    jIntMean = args.jIntMean
-    jIntStd = args.jIntStd
-    bFieldMean = args.bFieldMean
-    bFieldStd = args.bFieldStd
-    anglePolarPiMin = args.anglePolarPiMin
-    anglePolarPiMax = args.anglePolarPiMax
-
     model = _build_model_from_args(args, _rng_from_args(args, rng))
 
-    print("bField_samples = %s" % model.bField_samples)
-    print("theta_samples = %s" % model.theta_samples)
-    print("jInt_samples = %s" % model.jInt_samples)
+    logging.info("bField_samples = %s", model.bField_samples)
+    logging.info("theta_samples = %s", model.theta_samples)
+    logging.info("jInt_samples = %s", model.jInt_samples)
 
-    ## Diagonalizing Hamiltonian
-    diagonalization = eigensolver.solve_hermitian_eigenproblem(
+    diag = eigensolver.solve_hermitian_eigenproblem(
         model.hamiltonian,
         backend=args.eigenBackend,
         device=args.eigenDevice,
     )
-    eigenvalues = diagonalization.eigenvalues
-    eigenvectors = diagonalization.as_qobj_kets()
-
-    ## Time evolution
-    ket_initial = qutip.ket('1' * systemsize)
-    print(ket_initial)
-
-    amplitude_eigenvectors = [v.overlap(ket_initial) for v in eigenvectors]
-    print(amplitude_eigenvectors)
-
+    eigenvectors = diag.as_qobj_kets()
+    ket_initial = qutip.ket("1" * systemsize)
+    amplitudes = np.asarray([v.overlap(ket_initial) for v in eigenvectors])
     times_array = _time_grid(args.tduration)
+    phases = build_time_propagator_phases(diag.eigenvalues, times_array)
+    amplitude_return_array = phases @ (np.abs(amplitudes) ** 2)
 
-    amplitude_return_array = np.empty_like(times_array, dtype=complex)
-
-    for ix_time, t in enumerate(times_array):
-        a = np.sum([
-            np.exp(-1j * t * eigenvalues[k]) * \
-             np.abs(amplitude_eigenvectors[k])**2
-            for k in range(len(eigenvalues))])
-
-        amplitude_return_array[ix_time] = a
-
-    print(amplitude_return_array)
-
-    ## Eigenvector entropy plot for the Ising Hamiltonian
-    fig, ax = plt.subplots(1, 1, figsize=(18.0 / 2.54, 12.0 / 2.54))
-
-    ax.plot(times_array, -np.log(np.abs(amplitude_return_array)**2) / systemsize)
-    ax.set_ylabel(r"$\lambda(t)$")
-    ax.set_xlabel(r"$B_{\mathrm{mean}} t$")
-
-    plotfilename = output_names.mbl_dynamics_plot_name(
-        systemsize=systemsize,
-        anglePolarPiMin=anglePolarPiMin,
-        anglePolarPiMax=anglePolarPiMax,
-        jIntMean=jIntMean,
-        jIntStd=jIntStd,
-        bFieldMean=bFieldMean,
-        bFieldStd=bFieldStd,
+    logging.info("amplitude_return_array = %s", amplitude_return_array)
+    plot_return_rate(
+        times_array,
+        amplitude_return_array,
+        systemsize,
+        output_names.mbl_dynamics_plot_name(
+            systemsize=systemsize,
+            anglePolarPiMin=args.anglePolarPiMin,
+            anglePolarPiMax=args.anglePolarPiMax,
+            jIntMean=args.jIntMean,
+            jIntStd=args.jIntStd,
+            bFieldMean=args.bFieldMean,
+            bFieldStd=args.bFieldStd,
+        ),
     )
-
-    fig.savefig(plotfilename)
-    plt.close()
 
 
 def run_mbl_propagator(args, rng=None):
+    """Run MBL propagator and operator-overlap analysis."""
     systemsize = args.systemsize
     model = _build_model_from_args(args, _rng_from_args(args, rng))
+    logging.info("bField_samples = %s", model.bField_samples)
+    logging.info("theta_samples = %s", model.theta_samples)
+    logging.info("jInt_samples = %s", model.jInt_samples)
 
-    logging.info("bField_samples = %s" % model.bField_samples)
-    logging.info("theta_samples = %s" % model.theta_samples)
-    logging.info("jInt_samples = %s" % model.jInt_samples)
-
-    hamiltonian = model.hamiltonian
-    sigmax = model.sigmax
-    sigmay = model.sigmay
-    sigmaz = model.sigmaz
-
-    ## Diagonalizing Hamiltonian
-    diagonalization = eigensolver.solve_hermitian_eigenproblem(
-        hamiltonian,
+    diag = eigensolver.solve_hermitian_eigenproblem(
+        model.hamiltonian,
         backend=args.eigenBackend,
         device=args.eigenDevice,
     )
-    energies = diagonalization.eigenvalues
-    basis_changer_qobj = diagonalization.as_basis_qobj()
+    energies = diag.eigenvalues
+    basis_changer = diag.as_basis_qobj()
 
-    logging.info("basis_changer_obj = %s" % (basis_changer_qobj,))
-
-    ## Operators of interest
-    sigmax_array = np.asarray(
-        [expand_operator(
-            sigmax / np.sqrt(1 << systemsize), N=systemsize, targets=(ix_site,))
-            for ix_site in range(systemsize)], dtype=object)
-
-    sigmay_array = np.asarray(
-        [expand_operator(
-            sigmay / np.sqrt(1 << systemsize), N=systemsize, targets=(ix_site,))
-            for ix_site in range(systemsize)], dtype=object)
-
-    sigmaz_array = np.asarray(
-        [expand_operator(
-            sigmaz / np.sqrt(1 << systemsize), N=systemsize, targets=(ix_site,))
-            for ix_site in range(systemsize)], dtype=object)
-
-    logging.info("sigmax: \n %s \n" % (sigmax_array,))
-    logging.info("sigmay: \n %s \n" % (sigmay_array,))
-    logging.info("sigmaz: \n %s \n" % (sigmaz_array,))
-
-    sigmax_hamiltonian_eigenbasis_array = \
-        [basis_changer_qobj.dag() * qutip.Qobj(x, dims=hamiltonian.dims) * basis_changer_qobj
-            for x in sigmax_array]
-
-    sigmay_hamiltonian_eigenbasis_array = \
-        [basis_changer_qobj.dag() * qutip.Qobj(y, dims=hamiltonian.dims) * basis_changer_qobj
-            for y in sigmay_array]
-
-    sigmaz_hamiltonian_eigenbasis_array = \
-        [basis_changer_qobj.dag() * qutip.Qobj(z, dims=hamiltonian.dims) * basis_changer_qobj
-            for z in sigmaz_array]
-
-    logging.info("sigmax: \n %s \n" % (sigmax_hamiltonian_eigenbasis_array,))
-    logging.info("sigmay: \n %s \n" % (sigmay_hamiltonian_eigenbasis_array,))
-    logging.info("sigmaz: \n %s \n" % (sigmaz_hamiltonian_eigenbasis_array,))
-
-    ## Time evolution
-    times_array: np.ndarray = _time_grid(args.tduration)
-
-    eigenphases: np.ndarray = np.empty((len(times_array), len(energies)), dtype=complex)
-
-    for ix_time, t in enumerate(times_array):
-        eigenphases[ix_time, :] = np.exp(-1j * t * energies)
-
-    sigmax_time_evolved_array = np.empty((systemsize, len(times_array)), dtype=object)
-    sigmay_time_evolved_array = np.empty((systemsize, len(times_array)), dtype=object)
-    sigmaz_time_evolved_array = np.empty((systemsize, len(times_array)), dtype=object)
-
-    for ix_time, t in enumerate(times_array):
-        propagator = \
-                basis_changer_qobj * \
-                qutip.Qobj(
-                    np.diag(eigenphases[ix_time, :]),
-                    dims=basis_changer_qobj.dims)
-
-        logging.info("propagator type = %s" % (type(propagator),))
-
-        for ix_site in range(systemsize):
-            x = sigmax_hamiltonian_eigenbasis_array[ix_site]
-            y = sigmay_hamiltonian_eigenbasis_array[ix_site]
-            z = sigmaz_hamiltonian_eigenbasis_array[ix_site]
-
-            logging.info("x type = %s" % type(x))
-            logging.info("y type = %s" % type(y))
-            logging.info("z type = %s" % type(z))
-
-            sigmax_time_evolved_array[ix_site, ix_time] = \
-                    propagator * x * propagator.dag()
-
-            sigmay_time_evolved_array[ix_site, ix_time] = \
-                    propagator * y * propagator.dag()
-
-            sigmaz_time_evolved_array[ix_site, ix_time] = \
-                    propagator * z * propagator.dag()
-
-    logging.info("sigmax time evolved: \n %s \n" % (sigmax_time_evolved_array[0, -1],))
-    logging.info("sigmay time evolved: \n %s \n" % (sigmay_time_evolved_array[0, -1],))
-    logging.info("sigmaz time evolved: \n %s \n" % (sigmaz_time_evolved_array[0, -1],))
-
-    overlap_matrix = _compute_overlap_matrix(
-        initial_operator_arrays=(sigmax_array, sigmay_array, sigmaz_array),
-        time_evolved_operator_arrays=(
-            sigmax_time_evolved_array,
-            sigmay_time_evolved_array,
-            sigmaz_time_evolved_array,
-        ),
-        hamiltonian_dims=hamiltonian.dims,
+    operator_arrays = tuple(
+        build_site_operator_array(operator, systemsize, normalize=True)
+        for operator in (model.sigmax, model.sigmay, model.sigmaz)
+    )
+    eigenbasis_arrays = tuple(
+        rotate_to_eigenbasis(
+            [_as_qobj_with_dims(operator, model.hamiltonian.dims)
+             for operator in operator_array],
+            basis_changer,
+        )
+        for operator_array in operator_arrays
     )
 
-    logging.info("overlap_matrix = \n%s" % (np.round(overlap_matrix[:, :, -1], 4),))
+    times_array = _time_grid(args.tduration)
+    phases = build_time_propagator_phases(energies, times_array)
+    evolved_arrays = tuple(
+        np.empty((systemsize, len(times_array)), dtype=object)
+        for _ in range(3)
+    )
+    for ix_time in range(len(times_array)):
+        propagator = basis_changer * qutip.Qobj(
+            np.diag(phases[ix_time]), dims=basis_changer.dims
+        )
+        for ix_site in range(systemsize):
+            for eigenbasis_array, evolved_array in zip(
+                    eigenbasis_arrays, evolved_arrays):
+                evolved_array[ix_site, ix_time] = (
+                    propagator
+                    * eigenbasis_array[ix_site]
+                    * propagator.dag()
+                )
+
+    overlap_matrix = _compute_overlap_matrix(
+        initial_operator_arrays=operator_arrays,
+        time_evolved_operator_arrays=evolved_arrays,
+        hamiltonian_dims=model.hamiltonian.dims,
+    )
+    logging.info("overlap_matrix (t=-1):\n%s", np.round(overlap_matrix[:, :, -1], 4))
+    return overlap_matrix
+
+
+def _as_qobj_with_dims(operator, dims):
+    if isinstance(operator, qutip.Qobj):
+        return operator
+    return qutip.Qobj(operator, dims=dims)
 
 
 def _compute_overlap_matrix(
@@ -315,21 +214,21 @@ def _compute_overlap_matrix(
             for ix_channel_final in range(3):
                 for ix_site_initial in range(systemsize):
                     for ix_site_final in range(systemsize):
-                        op_initial = qutip.Qobj(
+                        op_initial = _as_qobj_with_dims(
                             initial_operator_arrays[ix_channel_initial][ix_site_initial],
-                            dims=hamiltonian_dims,
+                            hamiltonian_dims,
                         )
-                        op_final = qutip.Qobj(
+                        op_final = _as_qobj_with_dims(
                             time_evolved_operator_arrays[ix_channel_final][
-                                ix_site_final, ix_time],
-                            dims=hamiltonian_dims,
+                                ix_site_final, ix_time
+                            ],
+                            hamiltonian_dims,
                         )
                         overlap_matrix[
                             ix_channel_initial * systemsize + ix_site_initial,
                             ix_channel_final * systemsize + ix_site_final,
                             ix_time,
                         ] = (op_initial * op_final).tr()
-
     return overlap_matrix
 
 
@@ -337,6 +236,5 @@ def _time_grid(duration, step=0.0625):
     duration = float(duration)
     if not np.isfinite(duration) or duration < 0.0:
         raise ValueError("tduration must be finite and non-negative")
-
     sample_count = max(1, int(np.ceil(duration / step)))
     return np.linspace(0.0, duration, sample_count + 1)

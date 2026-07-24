@@ -43,6 +43,9 @@ The optional Qiskit circuit layer is available with:
 python3 -m pip install .[qiskit]
 ```
 
+This extra includes `qiskit` and `qiskit-aer` for circuit construction and
+simulation. The exact `statevector` simulation backend only needs `qiskit`.
+
 Run commands from the repository root so both the root shim scripts and
 `import mbl_eigen` resolve correctly.
 
@@ -53,13 +56,18 @@ Run commands from the repository root so both the root shim scripts and
 - `main_mbl.py`: CLI shim for MBL spectrum and eigenvector entropy analysis.
 - `main_mbl_dynamics.py`: CLI shim for MBL return-rate dynamics.
 - `main_mbl_propagator.py`: CLI shim for propagator / overlap analysis.
+- `main_qiskit_sim.py`: MBL dynamics through Qiskit simulation backends.
 - `mbl_eigen/cli.py`: shared `argparse` builders for the CLI shims.
 - `mbl_eigen/qmbs_app.py`: QMBS implementation.
 - `mbl_eigen/mbldtc_app.py`: MBL-DTC implementation.
 - `mbl_eigen/mbl_app.py`: MBL, MBL dynamics, and MBL propagator implementations.
 - `mbl_eigen/mbl_model.py`: shared random-field MBL Hamiltonian builder.
 - `mbl_eigen/eigensolver.py`: backend-selectable eigenvalue/eigenvector solver layer.
+- `mbl_eigen/eigenphase.py`: eigenphase and time-propagator helpers.
+- `mbl_eigen/operators.py`: shared local and expanded operator builders.
+- `mbl_eigen/plotting.py`: shared figure creation and plotting helpers.
 - `mbl_eigen/qiskit_propagators.py`: Qiskit circuit builders for hardware-suitable MBL and MBL-DTC propagators.
+- `mbl_eigen/qiskit_simulation.py`: statevector, Aer, and fake-backend simulation engine.
 - `mbl_eigen/output_names.py`: centralized output filename formatting.
 - `mbl_eigen/level_repulsion.py`: adjacent-level-spacing-ratio helper.
 - `mbl_eigen/reflection.py`: reflection-symmetry utilities.
@@ -68,7 +76,7 @@ Run commands from the repository root so both the root shim scripts and
 
 ## CLI Overview
 
-The repository currently exposes five root-level commands:
+The repository currently exposes six root-level commands:
 
 | Script | Purpose | Output |
 | --- | --- | --- |
@@ -77,6 +85,7 @@ The repository currently exposes five root-level commands:
 | `main_mbl.py` | MBL spectrum and half-chain eigenvector entropy analysis | One UUID-suffixed PDF |
 | `main_mbl_dynamics.py` | MBL return-rate dynamics | One UUID-suffixed PDF plus `print(...)` output |
 | `main_mbl_propagator.py` | MBL propagator and operator-overlap analysis | No plot; logs matrices and overlaps |
+| `main_qiskit_sim.py` | MBL return-rate and magnetization simulation | Two UUID-suffixed PDFs |
 
 Common CLI behavior:
 
@@ -319,6 +328,29 @@ Default backend note:
 - It then computes the overlap matrix between the initial and time-evolved
   operators for all `x`, `y`, and `z` channels.
 
+## Qiskit Simulation CLI
+
+Run MBL time evolution through an exact Qiskit statevector backend with:
+
+```bash
+python3 main_qiskit_sim.py --systemsize=4 --tduration=1.0 --jIntMean=1.0 --bFieldMean=1.0 --jIntStd=1.0 --bFieldStd=1.0 --anglePolarPiMin=0.0 --anglePolarPiMax=1.0 --seed=7 --trotterSteps=10
+```
+
+`main_qiskit_sim.py` accepts all MBL disorder and `--seed` flags, plus:
+
+| Flag | Type | Meaning |
+| --- | --- | --- |
+| `--simBackend` | `str` | `statevector`, `aer`, or `fake_backend` |
+| `--shots` | `int` | Positive shot count for shot-based simulation; required by `fake_backend` |
+| `--fakeBackend` | `str` | Fake IBM backend name |
+| `--trotterSteps` | `int` | Positive Trotter steps per unit time |
+| `--trotterOrder` | `int` | First- or second-order Trotter decomposition |
+
+The command writes return-rate and site-resolved magnetization PDFs. The
+`statevector` backend requires only `qiskit`; `aer` and `fake_backend` require
+the optional `qiskit-aer` extra, and fake backends also require a compatible
+Qiskit fake-provider package.
+
 ## Python API
 
 The reusable implementation lives in `mbl_eigen/`. The most relevant public
@@ -329,6 +361,7 @@ entrypoints are listed below.
 - `mbl_eigen.cli.build_qmbs_parser()`
 - `mbl_eigen.cli.build_mbldtc_parser()`
 - `mbl_eigen.cli.build_mbl_parser()`
+- `mbl_eigen.cli.build_qiskit_sim_parser()`
 
 These functions return `argparse.ArgumentParser` instances matching the root
 shim scripts.
@@ -340,6 +373,7 @@ shim scripts.
 - `mbl_eigen.mbl_app.run_mbl(args)`
 - `mbl_eigen.mbl_app.run_mbl_dynamics(args)`
 - `mbl_eigen.mbl_app.run_mbl_propagator(args)`
+- `mbl_eigen.qiskit_simulation.run_mbl_qiskit_simulation(...)`
 
 Each runner expects an object with the same attributes produced by the matching
 parser.
@@ -405,6 +439,11 @@ dtc_circuit = build_mbldtc_floquet_circuit(
     cycles=2,
 )
 ```
+
+For local simulation, `mbl_eigen.qiskit_simulation.run_mbl_qiskit_simulation`
+returns `SimulationResult` with `times`, `return_rate`, and site-resolved
+`magnetization_z`. Use `backend="statevector"` for exact simulation without
+Aer; use `backend="aer"` or `backend="fake_backend"` for shot-based runs.
 
 `build_mbl_model(...)` returns an `MBLModel` dataclass with:
 

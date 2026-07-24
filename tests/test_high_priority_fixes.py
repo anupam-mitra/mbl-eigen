@@ -8,17 +8,20 @@ import qutip
 from mbl_eigen import level_repulsion
 from mbl_eigen.cli import build_mbldtc_parser
 from mbl_eigen.cli import build_mbl_parser
+from mbl_eigen.cli import build_qiskit_sim_parser
 from mbl_eigen.cli import build_qmbs_parser
 from mbl_eigen.eigensolver import solve_general_eigenproblem
 from mbl_eigen.eigensolver import solve_hermitian_eigenproblem
 from mbl_eigen.eigensolver import _resolve_jax_device
 from mbl_eigen.mbl_app import _compute_overlap_matrix
 from mbl_eigen.mbl_app import _time_grid
+from mbl_eigen.mbl_model import build_mbl_model
 from mbl_eigen.mbl_model import build_mbl_hamiltonian
 from mbl_eigen.mbl_model import sample_mbl_disorder
 from mbl_eigen.mbl_model import spin_operators
 from mbl_eigen.qiskit_propagators import sample_mbldtc_angles
 from mbl_eigen.reflection import reflection_about_center
+from mbl_eigen.qiskit_simulation import run_mbl_qiskit_simulation
 
 
 class HighPriorityFixTests(unittest.TestCase):
@@ -110,6 +113,22 @@ class HighPriorityFixTests(unittest.TestCase):
         times = _time_grid(1.0)
         self.assertEqual(len(times), 17)
         self.assertAlmostEqual(times[-1], 1.0)
+
+    def test_qiskit_sim_parser_exposes_validated_controls(self):
+        args = build_qiskit_sim_parser().parse_args([
+            "--systemsize", "1",
+            "--tduration", "1",
+            "--jIntMean", "1",
+            "--bFieldMean", "1",
+            "--jIntStd", "1",
+            "--bFieldStd", "1",
+            "--anglePolarPiMin", "0",
+            "--anglePolarPiMax", "1",
+            "--shots", "16",
+            "--trotterSteps", "4",
+        ])
+        self.assertEqual(args.shots, 16)
+        self.assertEqual(args.trotterSteps, 4)
 
     def test_single_site_reflection_is_identity(self):
         swap = qutip.tensor(qutip.qeye(2), qutip.qeye(2))
@@ -305,6 +324,43 @@ class QiskitOrderingTests(unittest.TestCase):
             np.linalg.norm(qiskit_operator - quutip_operator.full()),
             1.0e-12,
         )
+
+
+@unittest.skipIf(Operator is None, "Qiskit extra is not installed")
+class QiskitSimulationTests(unittest.TestCase):
+    def setUp(self):
+        self.model = build_mbl_model(
+            systemsize=1,
+            jIntMean=1.0,
+            jIntStd=0.0,
+            bFieldMean=1.0,
+            bFieldStd=0.0,
+            anglePolarPiMin=0.0,
+            anglePolarPiMax=1.0,
+            rng=np.random.default_rng(123),
+        )
+
+    def test_statevector_simulation_returns_observables(self):
+        result = run_mbl_qiskit_simulation(
+            self.model,
+            np.array([0.0, 0.1]),
+            trotter_steps=2,
+            backend="statevector",
+        )
+        self.assertEqual(result.return_rate.shape, (2,))
+        self.assertEqual(result.magnetization_z.shape, (1, 2))
+        self.assertAlmostEqual(result.return_rate[0], 1.0)
+        self.assertAlmostEqual(result.magnetization_z[0, 0], -1.0)
+
+    def test_simulation_rejects_invalid_time_and_shot_inputs(self):
+        with self.assertRaisesRegex(ValueError, "must not be empty"):
+            run_mbl_qiskit_simulation(self.model, [], backend="statevector")
+        with self.assertRaisesRegex(ValueError, "fake_backend requires"):
+            run_mbl_qiskit_simulation(
+                self.model, [0.0], backend="fake_backend")
+        with self.assertRaisesRegex(ValueError, "only supported"):
+            run_mbl_qiskit_simulation(
+                self.model, [0.0], backend="statevector", shots=1)
 
 
 if __name__ == "__main__":

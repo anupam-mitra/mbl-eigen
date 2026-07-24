@@ -1,13 +1,21 @@
+"""Many-body localized (MBL) random-field spin-chain model builder."""
+
 from dataclasses import dataclass
 
 import numpy as np
-import qutip
 import scipy.stats
-from qutip.qip.operations import expand_operator
+
+from .operators import (
+    spin_operators,
+    sum_single_site_terms,
+    sum_two_site_terms,
+)
 
 
 @dataclass
 class MBLModel:
+    """Container for one random-field MBL realization."""
+
     hamiltonian: object
     sigma0: object
     sigmax: object
@@ -16,14 +24,6 @@ class MBLModel:
     jInt_samples: np.ndarray
     bField_samples: np.ndarray
     theta_samples: np.ndarray
-
-
-def spin_operators():
-    sigma0 = qutip.qeye(2)
-    sigmax = qutip.sigmax()
-    sigmay = qutip.sigmay()
-    sigmaz = qutip.sigmaz()
-    return sigma0, sigmax, sigmay, sigmaz
 
 
 def sample_mbl_disorder(
@@ -35,19 +35,25 @@ def sample_mbl_disorder(
         anglePolarPiMin,
         anglePolarPiMax,
         rng=None):
+    """Draw one disorder realization for the MBL Hamiltonian."""
     jInt_samples = scipy.stats.norm.rvs(
-        size=(systemsize - 1), loc=jIntMean, scale=jIntStd, random_state=rng)
-
+        size=systemsize - 1,
+        loc=jIntMean,
+        scale=jIntStd,
+        random_state=rng,
+    )
     bField_samples = scipy.stats.norm.rvs(
-        size=systemsize, loc=bFieldMean, scale=bFieldStd, random_state=rng)
-
+        size=systemsize,
+        loc=bFieldMean,
+        scale=bFieldStd,
+        random_state=rng,
+    )
     theta_samples = scipy.stats.uniform.rvs(
         size=systemsize,
         loc=anglePolarPiMin * np.pi,
         scale=(anglePolarPiMax - anglePolarPiMin) * np.pi,
         random_state=rng,
     )
-
     return jInt_samples, bField_samples, theta_samples
 
 
@@ -59,41 +65,28 @@ def build_mbl_hamiltonian(
         sigma0,
         sigmax,
         sigmaz):
+    """Assemble the random-field MBL Hamiltonian."""
+    import qutip
+
     sigmaz_sigmaz = qutip.tensor(sigmaz, sigmaz)
-
     bperp_terms = [
-         bField_samples[ix_site] * np.sin(theta_samples[ix_site]) * sigmax
-            for ix_site in range(systemsize)]
-
+        bField_samples[i] * np.sin(theta_samples[i]) * sigmax
+        for i in range(systemsize)
+    ]
     bparallel_terms = [
-        bField_samples[ix_site] * np.cos(theta_samples[ix_site]) * sigmaz
-            for ix_site in range(systemsize)]
-
+        bField_samples[i] * np.cos(theta_samples[i]) * sigmaz
+        for i in range(systemsize)
+    ]
     interaction_zz_terms = [
-        jInt_samples[ix_site] * sigmaz_sigmaz
-            for ix_site in range(systemsize - 1)]
+        jInt_samples[i] * sigmaz_sigmaz
+        for i in range(systemsize - 1)
+    ]
 
-    hamiltonian = 0.0 * expand_operator(
-                        sigma0, N=systemsize, targets=(0,))
-
-    for ix_site in range(systemsize):
-        h = bperp_terms[ix_site]
-        hamiltonian = hamiltonian + \
-                expand_operator(
-                        h, N=systemsize, targets=(ix_site,))
-
-        h = bparallel_terms[ix_site]
-        hamiltonian = hamiltonian + \
-                expand_operator(
-                        h, N=systemsize, targets=(ix_site,))
-
-    for ix_site in range(systemsize - 1):
-        h = interaction_zz_terms[ix_site]
-        hamiltonian = hamiltonian + \
-                expand_operator(
-                        h, N=systemsize, targets=(ix_site, ix_site + 1))
-
-    return hamiltonian
+    hamiltonian = sum_single_site_terms(bperp_terms, systemsize)
+    hamiltonian = hamiltonian + sum_single_site_terms(
+        bparallel_terms, systemsize)
+    return hamiltonian + sum_two_site_terms(
+        interaction_zz_terms, systemsize)
 
 
 def build_mbl_model(
@@ -105,6 +98,7 @@ def build_mbl_model(
         anglePolarPiMin,
         anglePolarPiMax,
         rng=None):
+    """Sample disorder and build a full :class:`MBLModel`."""
     sigma0, sigmax, sigmay, sigmaz = spin_operators()
     jInt_samples, bField_samples, theta_samples = sample_mbl_disorder(
         systemsize=systemsize,
@@ -116,7 +110,6 @@ def build_mbl_model(
         anglePolarPiMax=anglePolarPiMax,
         rng=rng,
     )
-
     hamiltonian = build_mbl_hamiltonian(
         systemsize=systemsize,
         jInt_samples=jInt_samples,
@@ -126,7 +119,6 @@ def build_mbl_model(
         sigmax=sigmax,
         sigmaz=sigmaz,
     )
-
     return MBLModel(
         hamiltonian=hamiltonian,
         sigma0=sigma0,
@@ -137,3 +129,11 @@ def build_mbl_model(
         bField_samples=bField_samples,
         theta_samples=theta_samples,
     )
+
+
+__all__ = [
+    "MBLModel",
+    "build_mbl_hamiltonian",
+    "build_mbl_model",
+    "sample_mbl_disorder",
+]
