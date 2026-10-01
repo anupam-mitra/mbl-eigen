@@ -1,5 +1,7 @@
 """Shared matplotlib plotting routines for MBL eigenvalue analysis."""
 
+import os
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -41,8 +43,13 @@ def plot_eigenphases_unit_circle(eigenvalues_unitary, filename, *, figsize=None)
     ax.legend(loc="center")
 
     plt.tight_layout()
-    fig.savefig(filename)
-    plt.close(fig)
+    dirname = os.path.dirname(filename)
+    if dirname:
+        os.makedirs(dirname, exist_ok=True)
+    try:
+        fig.savefig(filename)
+    finally:
+        plt.close(fig)
 
 
 def plot_eigenvector_entropy(
@@ -82,12 +89,21 @@ def plot_eigenvector_entropy(
     )
     ax.axhline(page_entropy, ls="dotted", color="k")
 
-    fig.savefig(filename)
-    plt.close(fig)
+    plt.tight_layout()
+    dirname = os.path.dirname(filename)
+    if dirname:
+        os.makedirs(dirname, exist_ok=True)
+    try:
+        fig.savefig(filename)
+    finally:
+        plt.close(fig)
 
 
 def plot_return_rate(times, amplitudes, systemsize, filename, *, figsize=None):
     """Plot the normalised return rate  λ(t) = −log|A(t)|² / N  vs time.
+
+    Amplitudes are floored at ``1e-300`` before the logarithm so that
+    zero-amplitude samples cannot produce ``-inf`` points.
 
     Saves a PDF to *filename* and closes the figure.
 
@@ -108,12 +124,19 @@ def plot_return_rate(times, amplitudes, systemsize, filename, *, figsize=None):
         figsize = _WIDE_FIGSIZE
 
     fig, ax = plt.subplots(1, 1, figsize=figsize)
-    ax.plot(times, -np.log(np.abs(amplitudes) ** 2) / systemsize)
+    probs = np.maximum(np.abs(amplitudes) ** 2, 1e-300)
+    ax.plot(times, -np.log(probs) / systemsize)
     ax.set_ylabel(r"$\lambda(t)$")
     ax.set_xlabel(r"$B_{\mathrm{mean}} t$")
 
-    fig.savefig(filename)
-    plt.close(fig)
+    plt.tight_layout()
+    dirname = os.path.dirname(filename)
+    if dirname:
+        os.makedirs(dirname, exist_ok=True)
+    try:
+        fig.savefig(filename)
+    finally:
+        plt.close(fig)
 
 
 def plot_magnetization_z(times, magnetization_z, filename, *, figsize=None):
@@ -145,8 +168,14 @@ def plot_magnetization_z(times, magnetization_z, filename, *, figsize=None):
     ax.set_xlabel(r"$t$")
     ax.legend(loc="best")
 
-    fig.savefig(filename)
-    plt.close(fig)
+    plt.tight_layout()
+    dirname = os.path.dirname(filename)
+    if dirname:
+        os.makedirs(dirname, exist_ok=True)
+    try:
+        fig.savefig(filename)
+    finally:
+        plt.close(fig)
 
 
 __all__ = [

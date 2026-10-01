@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 import numpy as np
+import qutip
 import scipy.stats
 
 from .operators import (
@@ -17,7 +18,6 @@ class MBLModel:
     """Container for one random-field MBL realization."""
 
     hamiltonian: object
-    sigma0: object
     sigmax: object
     sigmay: object
     sigmaz: object
@@ -62,12 +62,9 @@ def build_mbl_hamiltonian(
         jInt_samples,
         bField_samples,
         theta_samples,
-        sigma0,
         sigmax,
         sigmaz):
     """Assemble the random-field MBL Hamiltonian."""
-    import qutip
-
     sigmaz_sigmaz = qutip.tensor(sigmaz, sigmaz)
     bperp_terms = [
         bField_samples[i] * np.sin(theta_samples[i]) * sigmax
@@ -99,7 +96,7 @@ def build_mbl_model(
         anglePolarPiMax,
         rng=None):
     """Sample disorder and build a full :class:`MBLModel`."""
-    sigma0, sigmax, sigmay, sigmaz = spin_operators()
+    _, sigmax, sigmay, sigmaz = spin_operators()
     jInt_samples, bField_samples, theta_samples = sample_mbl_disorder(
         systemsize=systemsize,
         jIntMean=jIntMean,
@@ -115,13 +112,11 @@ def build_mbl_model(
         jInt_samples=jInt_samples,
         bField_samples=bField_samples,
         theta_samples=theta_samples,
-        sigma0=sigma0,
         sigmax=sigmax,
         sigmaz=sigmaz,
     )
     return MBLModel(
         hamiltonian=hamiltonian,
-        sigma0=sigma0,
         sigmax=sigmax,
         sigmay=sigmay,
         sigmaz=sigmaz,

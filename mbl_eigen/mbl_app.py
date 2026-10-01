@@ -17,9 +17,11 @@ from .mbl_model import build_mbl_model
 from .operators import build_site_operator_array, rotate_to_eigenbasis
 from .plotting import (
     plot_eigenvector_entropy,
-    plot_eigenphases_unit_circle,
     plot_return_rate,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _rng_from_args(args, rng):
@@ -42,30 +44,33 @@ def _build_model_from_args(args, rng=None):
     )
 
 
-def run_mbl(args, rng=None):
-    """Run MBL spectrum and half-chain entanglement entropy analysis."""
-    systemsize = args.systemsize
-    tduration = args.tduration
+def _build_and_diagonalize(args, rng=None):
     model = _build_model_from_args(args, _rng_from_args(args, rng))
-
-    logging.info("bField_samples = %s", model.bField_samples)
-    logging.info("theta_samples = %s", model.theta_samples)
-    logging.info("jInt_samples = %s", model.jInt_samples)
-
+    logger.info("bField_samples = %s", model.bField_samples)
+    logger.info("theta_samples = %s", model.theta_samples)
+    logger.info("jInt_samples = %s", model.jInt_samples)
     diag = eigensolver.solve_hermitian_eigenproblem(
         model.hamiltonian,
         backend=args.eigenBackend,
         device=args.eigenDevice,
     )
+    return model, diag
+
+
+def run_mbl(args, rng=None):
+    """Run MBL spectrum and half-chain entanglement entropy analysis."""
+    systemsize = args.systemsize
+    tduration = _validate_duration(args.tduration)
+    model, diag = _build_and_diagonalize(args, rng)
     eigenvalues = diag.eigenvalues
     eigenvectors = diag.as_qobj_kets()
 
-    half_chain = list(range(systemsize >> 1))
+    half_chain = list(range(systemsize // 2))
     eigenvector_entropies = np.array([
         qutip.entropy_vn(qutip.ptrace(v, half_chain))
         for v in eigenvectors
     ])
-    logging.info("eigenvector_entropies.shape = %s", eigenvector_entropies.shape)
+    logger.info("eigenvector_entropies.shape = %s", eigenvector_entropies.shape)
 
     energy_ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
         eigenvalues, fraction_cutoff=0.0, use_spacing=True
@@ -78,13 +83,13 @@ def run_mbl(args, rng=None):
         use_spacing=True,
         circular_period=2.0 * np.pi,
     )
-    logging.info("ratio(energy) = %g", energy_ratio)
-    logging.info("ratio(eigenphase) = %g", phase_ratio)
+    logger.info("ratio(energy) = %g", energy_ratio)
+    logger.info("ratio(eigenphase) = %g", phase_ratio)
 
     plot_eigenvector_entropy(
         eigenvalues,
         eigenvector_entropies,
-        np.log(2) * (systemsize >> 1),
+        np.log(2) * (systemsize // 2),
         output_names.mbl_entropy_plot_name(
             systemsize=systemsize,
             anglePolarPiMin=args.anglePolarPiMin,
@@ -100,17 +105,7 @@ def run_mbl(args, rng=None):
 def run_mbl_dynamics(args, rng=None):
     """Run MBL return-rate dynamics and save a plot."""
     systemsize = args.systemsize
-    model = _build_model_from_args(args, _rng_from_args(args, rng))
-
-    logging.info("bField_samples = %s", model.bField_samples)
-    logging.info("theta_samples = %s", model.theta_samples)
-    logging.info("jInt_samples = %s", model.jInt_samples)
-
-    diag = eigensolver.solve_hermitian_eigenproblem(
-        model.hamiltonian,
-        backend=args.eigenBackend,
-        device=args.eigenDevice,
-    )
+    model, diag = _build_and_diagonalize(args, rng)
     eigenvectors = diag.as_qobj_kets()
     ket_initial = qutip.ket("1" * systemsize)
     amplitudes = np.asarray([v.overlap(ket_initial) for v in eigenvectors])
@@ -118,7 +113,7 @@ def run_mbl_dynamics(args, rng=None):
     phases = build_time_propagator_phases(diag.eigenvalues, times_array)
     amplitude_return_array = phases @ (np.abs(amplitudes) ** 2)
 
-    logging.info("amplitude_return_array = %s", amplitude_return_array)
+    logger.info("amplitude_return_array = %s", amplitude_return_array)
     plot_return_rate(
         times_array,
         amplitude_return_array,
@@ -138,16 +133,7 @@ def run_mbl_dynamics(args, rng=None):
 def run_mbl_propagator(args, rng=None):
     """Run MBL propagator and operator-overlap analysis."""
     systemsize = args.systemsize
-    model = _build_model_from_args(args, _rng_from_args(args, rng))
-    logging.info("bField_samples = %s", model.bField_samples)
-    logging.info("theta_samples = %s", model.theta_samples)
-    logging.info("jInt_samples = %s", model.jInt_samples)
-
-    diag = eigensolver.solve_hermitian_eigenproblem(
-        model.hamiltonian,
-        backend=args.eigenBackend,
-        device=args.eigenDevice,
-    )
+    model, diag = _build_and_diagonalize(args, rng)
     energies = diag.eigenvalues
     basis_changer = diag.as_basis_qobj()
 
@@ -188,8 +174,11 @@ def run_mbl_propagator(args, rng=None):
         time_evolved_operator_arrays=evolved_arrays,
         hamiltonian_dims=model.hamiltonian.dims,
     )
-    logging.info("overlap_matrix (t=-1):\n%s", np.round(overlap_matrix[:, :, -1], 4))
-    return overlap_matrix
+    logger.info(
+        "overlap_matrix (t=%s):\n%s",
+        times_array[-1],
+        np.round(overlap_matrix[:, :, -1], 4),
+    )
 
 
 def _as_qobj_with_dims(operator, dims):
@@ -232,9 +221,28 @@ def _compute_overlap_matrix(
     return overlap_matrix
 
 
-def _time_grid(duration, step=0.0625):
+def _validate_duration(duration, *, allow_zero=False):
     duration = float(duration)
-    if not np.isfinite(duration) or duration < 0.0:
-        raise ValueError("tduration must be finite and non-negative")
+    invalid = (
+        not np.isfinite(duration)
+        or duration < 0.0
+        or (duration == 0.0 and not allow_zero)
+    )
+    if invalid:
+        raise ValueError("tduration must be finite and positive")
+    return duration
+
+
+def _time_grid(duration, step=0.0625):
+    duration = _validate_duration(duration, allow_zero=True)
+    if duration == 0.0:
+        return np.array([0.0])
     sample_count = max(1, int(np.ceil(duration / step)))
+    if sample_count > 10_000_000:
+        raise ValueError(
+            "tduration too large: sample_count exceeds 10_000_000"
+        )
     return np.linspace(0.0, duration, sample_count + 1)
+
+
+time_grid = _time_grid

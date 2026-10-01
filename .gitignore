@@ -1,0 +1,7 @@
+.venv/
+.uv_cache/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+Plots/

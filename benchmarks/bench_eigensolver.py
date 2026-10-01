@@ -2,6 +2,7 @@
 import argparse
 import importlib.metadata
 import json
+import logging
 import platform
 import statistics
 import subprocess
@@ -24,6 +25,9 @@ from mbl_eigen.eigensolver import HERMITIAN_EIGEN_BACKENDS
 from mbl_eigen.eigensolver import solve_hermitian_eigenproblem
 from mbl_eigen.mbl_model import build_mbl_hamiltonian
 from mbl_eigen.mbl_model import spin_operators
+
+
+logger = logging.getLogger(__name__)
 
 
 SUITE_PRESETS = {
@@ -85,8 +89,8 @@ def parse_args():
     parser.add_argument("--workload", choices=("mbl", "synthetic", "both"), default="both")
     parser.add_argument("--backends", default=",".join(HERMITIAN_EIGEN_BACKENDS))
     parser.add_argument("--devices", default="cpu")
-    parser.add_argument("--systemsizes", default="")
-    parser.add_argument("--dims", default="")
+    parser.add_argument("--systemsizes", type=_parse_optional_int_list, default=None)
+    parser.add_argument("--dims", type=_parse_optional_int_list, default=None)
     parser.add_argument("--return-eigenvectors", choices=("false", "true", "both"), default="both")
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--repeat", type=int, default=5)
@@ -100,8 +104,8 @@ def main():
     backends = _parse_backends(args.backends)
     devices = _parse_devices(args.devices)
     return_eigenvectors_modes = _parse_return_eigenvectors_modes(args.return_eigenvectors)
-    systemsizes = _parse_optional_int_list(args.systemsizes) or SUITE_PRESETS[args.suite]["systemsizes"]
-    dims = _parse_optional_int_list(args.dims) or SUITE_PRESETS[args.suite]["dims"]
+    systemsizes = args.systemsizes or SUITE_PRESETS[args.suite]["systemsizes"]
+    dims = args.dims or SUITE_PRESETS[args.suite]["dims"]
     cases = _build_cases(
         workload=args.workload,
         systemsizes=systemsizes,
@@ -167,9 +171,12 @@ def _parse_devices(raw_value):
 
 
 def _parse_optional_int_list(raw_value):
-    if not raw_value:
-        return []
-    return [int(item.strip()) for item in raw_value.split(",") if item.strip()]
+    try:
+        return [int(item.strip()) for item in raw_value.split(",") if item.strip()]
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "invalid comma-separated integer list: %r" % raw_value
+        ) from exc
 
 
 def _parse_return_eigenvectors_modes(raw_value):
@@ -220,7 +227,6 @@ def _build_mbl_operator(systemsize, seed):
         jInt_samples=jInt_samples,
         bField_samples=bField_samples,
         theta_samples=theta_samples,
-        sigma0=qutip.qeye(2),
         sigmax=sigmax,
         sigmaz=sigmaz,
     )
@@ -244,7 +250,12 @@ def _compute_baseline(case, return_eigenvectors):
                 device="cpu",
                 return_eigenvectors=return_eigenvectors,
             )
-        except Exception:
+        except (np.linalg.LinAlgError, RuntimeError, ValueError) as exc:
+            print(
+                "baseline failed backend=%s label=%s reason=%s: %s"
+                % (backend, case.label, type(exc).__name__, exc),
+                file=sys.stderr,
+            )
             continue
     raise RuntimeError("failed to compute a baseline eigensolution for %s" % case.label)
 
@@ -383,30 +394,32 @@ def _collect_environment_metadata():
         "platform": platform.platform(),
         "machine": platform.machine(),
         "processor": platform.processor(),
-        "cpu_brand": _run_command("sysctl -n machdep.cpu.brand_string"),
-        "physical_cpu": _run_command("sysctl -n hw.physicalcpu"),
-        "logical_cpu": _run_command("sysctl -n hw.logicalcpu"),
+        "cpu_brand": _run_command(["sysctl", "-n", "machdep.cpu.brand_string"]),
+        "physical_cpu": _run_command(["sysctl", "-n", "hw.physicalcpu"]),
+        "logical_cpu": _run_command(["sysctl", "-n", "hw.logicalcpu"]),
         "gpu": _gpu_summary(),
         "package_versions": _package_versions(),
     }
 
 
-def _run_command(command):
+def _run_command(argv):
     try:
         completed = subprocess.run(
-            command,
-            shell=True,
+            argv,
+            shell=False,
             check=True,
             capture_output=True,
             text=True,
+            timeout=30,
         )
-    except Exception:
+    except Exception as exc:
+        logger.debug("command %r failed: %s: %s", argv, type(exc).__name__, exc)
         return None
     return completed.stdout.strip() or None
 
 
 def _gpu_summary():
-    summary = _run_command("system_profiler SPDisplaysDataType")
+    summary = _run_command(["system_profiler", "SPDisplaysDataType"])
     if summary is None:
         return None
     return summary

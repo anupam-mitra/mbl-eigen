@@ -19,7 +19,6 @@ The current dependency source of truth is `requirements.txt` and
 - `matplotlib`
 - `qutip`
 - `qutip-qip`
-- `jupyter`
 - `h5py`
 
 Install the environment with:
@@ -43,11 +42,20 @@ The optional Qiskit circuit layer is available with:
 python3 -m pip install .[qiskit]
 ```
 
-This extra includes `qiskit` and `qiskit-aer` for circuit construction and
-simulation. The exact `statevector` simulation backend only needs `qiskit`.
+This extra includes `qiskit`, `qiskit-aer`, and `qiskit-ibm-runtime` for
+circuit construction, simulation, and fake-backend providers. The exact
+`statevector` simulation backend only needs `qiskit`.
 
 Run commands from the repository root so both the root shim scripts and
 `import mbl_eigen` resolve correctly.
+
+### Console scripts
+
+After `python3 -m pip install .`, the following console entry points become
+available: `mbl-eigen-qmbs`, `mbl-eigen-mbldtc`, `mbl-eigen-mbl`,
+`mbl-eigen-mbl-dynamics`, `mbl-eigen-mbl-propagator`, and
+`mbl-eigen-qiskit-sim`. The root `main_*.py` shims keep working when run from
+the repository root.
 
 ## Repository Layout
 
@@ -80,10 +88,10 @@ The repository currently exposes six root-level commands:
 
 | Script | Purpose | Output |
 | --- | --- | --- |
-| `main_qmbs.py` | QMBS and PXP eigenphase analysis | Two stable PDF files |
+| `main_qmbs.py` | QMBS and PXP eigenphase analysis | Two UUID-suffixed PDF files |
 | `main_mbldtc.py` | Floquet eigenphase analysis for an MBL-DTC model | One UUID-suffixed PDF |
 | `main_mbl.py` | MBL spectrum and half-chain eigenvector entropy analysis | One UUID-suffixed PDF |
-| `main_mbl_dynamics.py` | MBL return-rate dynamics | One UUID-suffixed PDF plus `print(...)` output |
+| `main_mbl_dynamics.py` | MBL return-rate dynamics | One UUID-suffixed PDF plus logging output (stderr, INFO level) |
 | `main_mbl_propagator.py` | MBL propagator and operator-overlap analysis | No plot; logs matrices and overlaps |
 | `main_qiskit_sim.py` | MBL return-rate and magnetization simulation | Two UUID-suffixed PDFs |
 
@@ -270,7 +278,7 @@ python3 main_mbl_dynamics.py --systemsize=12 --tduration=1.0 --jIntMean=1.0 --bF
 
 - `mbl_sfim_dynamics_N=%02d_anglePolarPiMin=%g_anglePolarPiMax=%g_jIntMean=%g_jIntStd=%g_bFieldMean=%g_bFieldStd=%g_%s.pdf`
 
-It also prints the following intermediate values to standard output:
+It also logs the following intermediate values via `logging.info` (stderr, INFO level):
 
 - `bField_samples`
 - `theta_samples`
@@ -343,7 +351,7 @@ python3 main_qiskit_sim.py --systemsize=4 --tduration=1.0 --jIntMean=1.0 --bFiel
 | `--simBackend` | `str` | `statevector`, `aer`, or `fake_backend` |
 | `--shots` | `int` | Positive shot count for shot-based simulation; required by `fake_backend` |
 | `--fakeBackend` | `str` | Fake IBM backend name |
-| `--trotterSteps` | `int` | Positive Trotter steps per unit time |
+| `--trotterSteps` | `int` | Positive step rate; each time point `t` uses `max(1, round(trotterSteps * abs(t)))` steps |
 | `--trotterOrder` | `int` | First- or second-order Trotter decomposition |
 
 The command writes return-rate and site-resolved magnetization PDFs. The
@@ -368,11 +376,12 @@ shim scripts.
 
 ### Application Runners
 
-- `mbl_eigen.qmbs_app.run_qmbs(args)`
-- `mbl_eigen.mbldtc_app.run_mbldtc(args)`
-- `mbl_eigen.mbl_app.run_mbl(args)`
-- `mbl_eigen.mbl_app.run_mbl_dynamics(args)`
-- `mbl_eigen.mbl_app.run_mbl_propagator(args)`
+- `mbl_eigen.qmbs_app.run_qmbs(args, rng=None)`
+- `mbl_eigen.mbldtc_app.run_mbldtc(args, rng=None)`
+- `mbl_eigen.mbl_app.run_mbl(args, rng=None)`
+- `mbl_eigen.mbl_app.run_mbl_dynamics(args, rng=None)`
+- `mbl_eigen.mbl_app.run_mbl_propagator(args, rng=None)`
+- `mbl_eigen.qiskit_app.run_mbl_qiskit(args)`
 - `mbl_eigen.qiskit_simulation.run_mbl_qiskit_simulation(...)`
 
 Each runner expects an object with the same attributes produced by the matching
@@ -448,7 +457,6 @@ Aer; use `backend="aer"` or `backend="fake_backend"` for shot-based runs.
 `build_mbl_model(...)` returns an `MBLModel` dataclass with:
 
 - `hamiltonian`
-- `sigma0`
 - `sigmax`
 - `sigmay`
 - `sigmaz`
@@ -479,9 +487,7 @@ print(eigenvalues)
 ### Utility API
 
 - `mbl_eigen.level_repulsion.calc_mean_adjacent_level_spacing_ratio(...)`
-- `mbl_eigen.reflection.ReflectionAboutCenter`
 - `mbl_eigen.reflection.reflection_about_center(...)`
-- `mbl_eigen.symmetry.Symmetry`
 - `mbl_eigen.symmetry.Involution`
 
 ## Implementation Details

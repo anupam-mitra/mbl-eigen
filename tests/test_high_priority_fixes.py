@@ -133,7 +133,7 @@ class HighPriorityFixTests(unittest.TestCase):
     def test_single_site_reflection_is_identity(self):
         swap = qutip.tensor(qutip.qeye(2), qutip.qeye(2))
         reflection = reflection_about_center(1, swap)
-        self.assertTrue(reflection == qutip.qeye(2))
+        np.testing.assert_allclose(reflection.full(), qutip.qeye(2).full())
 
     def test_eigenvalue_only_paths_return_no_vectors(self):
         operator = qutip.Qobj([[1.0, 0.2], [0.2, 2.0]])
@@ -198,6 +198,135 @@ class HighPriorityFixTests(unittest.TestCase):
 
         self.assertEqual(overlap_matrix.shape, (3, 3, 1))
         self.assertTrue(np.isfinite(overlap_matrix).all())
+        self.assertAlmostEqual(overlap_matrix[0, 0, 0].real, 2.0)
+
+    def test_spacing_ratio_rejects_insufficient_input(self):
+        with self.assertRaisesRegex(ValueError, "at least"):
+            level_repulsion.calc_mean_adjacent_level_spacing_ratio(
+                np.array([0.1, 0.2]),
+                fraction_cutoff=0.0,
+            )
+
+    def test_spacing_ratio_rejects_degenerate_spectrum(self):
+        with self.assertRaisesRegex(ValueError, "Degenerate spectrum"):
+            level_repulsion.calc_mean_adjacent_level_spacing_ratio(
+                np.array([1.0, 1.0, 1.0, 1.0]),
+                fraction_cutoff=0.0,
+                circular_period=2.0 * np.pi,
+            )
+
+    def test_spacing_ratio_cutoff_is_symmetric(self):
+        rng = np.random.default_rng(123)
+        eigenvalues = np.sort(rng.normal(size=200))
+        with_cutoff = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
+            eigenvalues, fraction_cutoff=0.1)
+        manual = np.diff(eigenvalues[20:180])
+        expected = np.mean(
+            np.minimum(manual[:-1], manual[1:])
+            / np.maximum(manual[:-1], manual[1:]))
+        self.assertAlmostEqual(with_cutoff, expected, places=10)
+
+    def test_hermitian_solver_symmetrizes_non_hermitian_input(self):
+        non_hermitian = np.array([[1.0, 1.0], [0.0, 2.0]])
+        result = solve_hermitian_eigenproblem(
+            non_hermitian, backend="numpy", return_eigenvectors=False)
+        expected = np.sort(np.linalg.eigvalsh(
+            (non_hermitian + non_hermitian.conj().T) / 2.0))
+        np.testing.assert_allclose(result.eigenvalues, expected)
+
+    def test_general_solver_preserves_non_hermitian_spectrum(self):
+        non_hermitian = np.array([[1.0, 1.0], [0.0, 2.0]])
+        result = solve_general_eigenproblem(
+            non_hermitian, backend="qobj", return_eigenvectors=False)
+        expected = np.sort(np.linalg.eigvals(non_hermitian).real)
+        np.testing.assert_allclose(result.eigenvalues, expected)
+
+    def test_qmbs_parser_rejects_nonpositive_tduration(self):
+        parser = build_qmbs_parser()
+        for bad in ("nan", "inf", "-inf", "-1", "0"):
+            with contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    parser.parse_args([
+                        "--systemsize", "2",
+                        "--tduration", bad,
+                        "--Delta", "0.1",
+                    ])
+
+    def test_mbldtc_parser_rejects_nonfinite_theta(self):
+        parser = build_mbldtc_parser()
+        for bad in ("nan", "inf", "-inf"):
+            with contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    parser.parse_args([
+                        "--systemsize", "2",
+                        "--thetaXPi", bad,
+                    ])
+        args = parser.parse_args(["--systemsize", "2", "--thetaXPi", "-1"])
+        self.assertEqual(args.thetaXPi, -1.0)
+
+    def test_mbl_parser_rejects_negative_stds(self):
+        parser = build_mbl_parser()
+        for bad_flag in ("--jIntStd", "--bFieldStd"):
+            with contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    parser.parse_args([
+                        "--systemsize", "2",
+                        "--tduration", "1",
+                        "--jIntMean", "1",
+                        "--bFieldMean", "1",
+                        "--jIntStd", "1",
+                        "--bFieldStd", "1",
+                        "--anglePolarPiMin", "0",
+                        "--anglePolarPiMax", "1",
+                        bad_flag, "-0.5",
+                    ])
+
+    def test_mbl_parser_rejects_inverted_polar_angle_range(self):
+        parser = build_mbl_parser()
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                parser.parse_args([
+                    "--systemsize", "2",
+                    "--tduration", "1",
+                    "--jIntMean", "1",
+                    "--bFieldMean", "1",
+                    "--jIntStd", "1",
+                    "--bFieldStd", "1",
+                    "--anglePolarPiMin", "1",
+                    "--anglePolarPiMax", "0",
+                ])
+
+    def test_mbl_parser_rejects_oversized_systemsize(self):
+        parser = build_mbl_parser()
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                parser.parse_args([
+                    "--systemsize", "23",
+                    "--tduration", "1",
+                    "--jIntMean", "1",
+                    "--bFieldMean", "1",
+                    "--jIntStd", "1",
+                    "--bFieldStd", "1",
+                    "--anglePolarPiMin", "0",
+                    "--anglePolarPiMax", "1",
+                ])
+
+    def test_pxp_hamiltonian_rejects_single_site(self):
+        from mbl_eigen.qmbs_model import build_pxp_hamiltonian
+        with self.assertRaisesRegex(ValueError, "systemsize"):
+            build_pxp_hamiltonian(systemsize=1, Omega=1.0, Delta=0.1)
+
+    def test_cli_dispatchers_are_callable(self):
+        from mbl_eigen import cli
+        for name in (
+            "main_qmbs",
+            "main_mbldtc",
+            "main_mbl",
+            "main_mbl_dynamics",
+            "main_mbl_propagator",
+            "main_qiskit_sim",
+        ):
+            self.assertTrue(callable(getattr(cli, name)))
 
 
 try:
@@ -220,13 +349,12 @@ class QiskitOrderingTests(unittest.TestCase):
         theta = np.array([0.1, 0.5, 1.0])
         time = 0.03
 
-        sigma0, sigmax, _, sigmaz = spin_operators()
+        _, sigmax, _, sigmaz = spin_operators()
         hamiltonian = build_mbl_hamiltonian(
             systemsize,
             j_int,
             b_field,
             theta,
-            sigma0,
             sigmax,
             sigmaz,
         )
@@ -351,6 +479,42 @@ class QiskitSimulationTests(unittest.TestCase):
         self.assertEqual(result.magnetization_z.shape, (1, 2))
         self.assertAlmostEqual(result.return_rate[0], 1.0)
         self.assertAlmostEqual(result.magnetization_z[0, 0], -1.0)
+
+    def test_statevector_magnetization_rows_match_model_sites(self):
+        model = build_mbl_model(
+            systemsize=2,
+            jIntMean=0.5,
+            jIntStd=0.0,
+            bFieldMean=1.0,
+            bFieldStd=0.5,
+            anglePolarPiMin=0.1,
+            anglePolarPiMax=0.1,
+            rng=np.random.default_rng(11),
+        )
+        j_int = np.asarray(model.jInt_samples)
+        b_field = np.asarray(model.bField_samples)
+        theta = np.asarray(model.theta_samples)
+        self.assertNotAlmostEqual(b_field[0], b_field[1], places=2)
+
+        time = 0.1
+        result = run_mbl_qiskit_simulation(
+            model,
+            np.array([0.0, time]),
+            trotter_steps=200,
+            backend="statevector",
+        )
+
+        _, sigmax, _, sigmaz = spin_operators()
+        hamiltonian = build_mbl_hamiltonian(
+            2, j_int, b_field, theta, sigmax, sigmaz)
+        psi0 = qutip.tensor(qutip.basis(2, 1), qutip.basis(2, 1))
+        psi = (-1j * hamiltonian * time).expm() * psi0
+        from qutip.qip.operations import expand_operator
+        for ix_site in range(2):
+            z_site = expand_operator(sigmaz, 2, targets=(ix_site,))
+            expected = qutip.expect(z_site, psi)
+            self.assertAlmostEqual(
+                result.magnetization_z[ix_site, 1], expected, places=3)
 
     def test_simulation_rejects_invalid_time_and_shot_inputs(self):
         with self.assertRaisesRegex(ValueError, "must not be empty"):

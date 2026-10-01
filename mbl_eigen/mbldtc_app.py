@@ -4,27 +4,30 @@ import logging
 
 import numpy as np
 import qutip
-from qutip.qip.operations import expand_operator
 
 from . import eigensolver
 from . import level_repulsion
 from . import output_names
+from .eigenphase import extract_sorted_eigenphases
+from .mbl_app import _rng_from_args
 from .operators import spin_operators, zero_operator
 from .plotting import plot_eigenphases_unit_circle
 from .qiskit_propagators import sample_mbldtc_angles
+
+logger = logging.getLogger(__name__)
 
 
 def run_mbldtc(args, rng=None):
     """Run MBL-DTC Floquet eigenphase analysis and save a plot."""
     systemsize = args.systemsize
     theta_x = np.pi * args.thetaXPi
-    if rng is None:
-        seed = getattr(args, "seed", None)
-        rng = None if seed is None else np.random.default_rng(seed)
+    from qutip.qip.operations import expand_operator
 
     _, sigmax, _, sigmaz = spin_operators()
     sigmaz_sigmaz = qutip.tensor(sigmaz, sigmaz)
-    phi_z, phi_zz = sample_mbldtc_angles(systemsize, rng=rng)
+    phi_z, phi_zz = sample_mbldtc_angles(
+        systemsize, rng=_rng_from_args(args, rng)
+    )
 
     rotation_x = (-1j * theta_x * 0.5 * sigmax).expm()
     rotation_z = [
@@ -60,7 +63,7 @@ def run_mbldtc(args, rng=None):
         return_eigenvectors=False,
     )
     eigenvalues = diag.eigenvalues
-    eigenphases = np.sort(np.mod(np.angle(eigenvalues), 2.0 * np.pi))
+    eigenphases = extract_sorted_eigenphases(eigenvalues)
     ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
         eigenphases,
         fraction_cutoff=0.0,
@@ -68,10 +71,10 @@ def run_mbldtc(args, rng=None):
         circular_period=2.0 * np.pi,
     )
 
-    logging.info("Eigenvalues = %s", eigenvalues)
-    logging.info("Eigenphases(U) = %s", eigenphases)
-    logging.info("Eigenphases(U^2) = %s", (eigenphases * 2) % (2.0 * np.pi))
-    logging.info("ratio = %g", ratio)
+    logger.info("Eigenvalues = %s", eigenvalues)
+    logger.info("Eigenphases(U) = %s", eigenphases)
+    logger.info("Eigenphases(U^2) = %s", (eigenphases * 2) % (2.0 * np.pi))
+    logger.info("ratio = %g", ratio)
 
     plot_eigenphases_unit_circle(
         eigenvalues,

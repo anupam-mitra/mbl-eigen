@@ -63,6 +63,12 @@ QISKIT_SIM_BACKENDS = ("statevector", "aer", "fake_backend")
 # Default fake backend name used when backend="fake_backend".
 DEFAULT_FAKE_BACKEND_NAME = "FakeManilaV2"
 
+# Epsilon floor for time-scaled Trotter step counts (guards t ≈ 0).
+_TROTTER_TIME_EPSILON = 1e-12
+
+# Per-job timeout (seconds) passed to Aer ``run``; guards hung jobs.
+_JOB_TIMEOUT_SECONDS = 300.0
+
 
 # ---------------------------------------------------------------------------
 # Result dataclass
@@ -160,6 +166,8 @@ def run_mbl_qiskit_simulation(
             % (backend, QISKIT_SIM_BACKENDS)
         )
 
+    if np.iscomplexobj(times_array):
+        raise ValueError("times_array must contain real values")
     times_array = np.asarray(times_array, dtype=float)
     if times_array.ndim != 1:
         raise ValueError("times_array must be a 1-D array")
@@ -202,7 +210,10 @@ def run_mbl_qiskit_simulation(
         circuit = _build_full_circuit(
             model=model,
             time=t,
-            trotter_steps=max(1, int(round(trotter_steps * max(abs(t), 1e-12)))),
+            trotter_steps=max(
+                1,
+                int(round(trotter_steps * max(abs(t), _TROTTER_TIME_EPSILON))),
+            ),
             trotter_order=trotter_order,
             insert_barriers=insert_barriers,
         )
@@ -315,8 +326,13 @@ class _AerSim:
             c = circuit.copy()
             c.save_statevector()
             tc = transpile(c, self._sim)
-            job = self._sim.run(tc)
+            job = self._sim.run(tc, timeout=_JOB_TIMEOUT_SECONDS)
             result = job.result()
+            if not result.success:
+                raise RuntimeError(
+                    "Aer statevector job failed (timeout=%ss)"
+                    % _JOB_TIMEOUT_SECONDS
+                )
             sv_data = np.asarray(result.get_statevector(tc), dtype=np.complex128)
             return sv_data
         else:
@@ -324,8 +340,15 @@ class _AerSim:
             c = circuit.copy()
             c.measure_all()
             tc = transpile(c, self._sim)
-            job = self._sim.run(tc, shots=self._shots)
-            counts = job.result().get_counts()
+            job = self._sim.run(
+                tc, shots=self._shots, timeout=_JOB_TIMEOUT_SECONDS
+            )
+            result = job.result()
+            if not result.success:
+                raise RuntimeError(
+                    "Aer counts job failed (timeout=%ss)" % _JOB_TIMEOUT_SECONDS
+                )
+            counts = result.get_counts()
             return _counts_to_statevector_proxy(counts, circuit.num_qubits, self._shots)
 
 
@@ -350,8 +373,14 @@ class _FakeBackendSim:
         c = circuit.copy()
         c.measure_all()
         tc = transpile(c, self._sim)
-        job = self._sim.run(tc, shots=self._shots)
-        counts = job.result().get_counts()
+        job = self._sim.run(tc, shots=self._shots, timeout=_JOB_TIMEOUT_SECONDS)
+        result = job.result()
+        if not result.success:
+            raise RuntimeError(
+                "Fake-backend counts job failed (timeout=%ss)"
+                % _JOB_TIMEOUT_SECONDS
+            )
+        counts = result.get_counts()
         return _counts_to_statevector_proxy(counts, circuit.num_qubits, self._shots)
 
 
@@ -408,7 +437,8 @@ def _site_magnetization_z(sv_data, systemsize):
     probability distribution from shot-based counts otherwise.
 
     In Qiskit's computational basis: Z|0⟩ = +1, Z|1⟩ = −1.
-    Qubit i contributes −1 if bit i of the basis state index is 1.
+    Model site i maps to qubit ``systemsize − 1 − i`` (little-endian),
+    so bit ``systemsize − 1 − i`` of the basis index sets ⟨Z_i⟩.
     """
     if isinstance(sv_data, _ShotProxy):
         return sv_data.magnetization_z(systemsize)
@@ -418,8 +448,8 @@ def _site_magnetization_z(sv_data, systemsize):
     indices = np.arange(len(probs), dtype=np.int64)
     mag = np.empty(systemsize, dtype=float)
     for i in range(systemsize):
-        # bit i set → eigenvalue −1; bit i clear → +1
-        bits_i = ((indices >> i) & 1).astype(float)
+        # model site i ↔ qubit N−1−i; bit set → eigenvalue −1, clear → +1
+        bits_i = ((indices >> (systemsize - 1 - i)) & 1).astype(float)
         eigenvalues_i = 1.0 - 2.0 * bits_i  # +1 or −1
         mag[i] = float(np.dot(probs, eigenvalues_i))
     return mag
@@ -433,20 +463,23 @@ class _ShotProxy:
     """Lightweight wrapper around Qiskit ``counts`` for expectation values."""
 
     def __init__(self, counts: dict, num_qubits: int, total_shots: int):
-        self._counts = counts
+        self._counts = {
+            key.replace(" ", ""): value for key, value in counts.items()
+        }
         self._num_qubits = num_qubits
         self._total_shots = total_shots
 
     def prob(self, bitstring: str) -> float:
         """Empirical probability of *bitstring* (e.g. '1111')."""
-        return self._counts.get(bitstring, 0) / self._total_shots
+        bits = bitstring.replace(" ", "")
+        return self._counts.get(bits, 0) / self._total_shots
 
     def magnetization_z(self, systemsize: int) -> np.ndarray:
         """Site-resolved ⟨Z_i⟩ from shot counts.
 
         Qiskit returns bitstrings in big-endian order for the *printed*
-        counts key (leftmost character = highest-index qubit), so we
-        reverse when indexing by site.
+        counts key (leftmost character = highest-index qubit).  After
+        reversing, model site i lives at index ``systemsize − 1 − i``.
         """
         mag = np.zeros(systemsize, dtype=float)
         for bitstring, count in self._counts.items():
@@ -455,7 +488,12 @@ class _ShotProxy:
             # Reverse: bits[0] is the highest-index qubit in Qiskit
             bits_reversed = bits[::-1]
             for i in range(systemsize):
-                b = int(bits_reversed[i]) if i < len(bits_reversed) else 0
+                bit_index = systemsize - 1 - i
+                b = (
+                    int(bits_reversed[bit_index])
+                    if bit_index < len(bits_reversed)
+                    else 0
+                )
                 mag[i] += (1.0 - 2.0 * b) * count
         return mag / self._total_shots
 

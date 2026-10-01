@@ -3,7 +3,9 @@ import logging
 import numpy as np
 
 
-################################################################################
+_logger = logging.getLogger(__name__)
+
+
 def calc_mean_adjacent_level_spacing_ratio(
         eigenvalues: np.ndarray,
         fraction_cutoff=0.02,
@@ -21,53 +23,70 @@ def calc_mean_adjacent_level_spacing_ratio(
     fraction_cutoff: float
     Fraction of eigenvalues to skip
 
+    use_spacing: bool, optional
+    If True, compute adjacent spacings from the bulk eigenvalues. If
+    False, the internal `spacings` variable holds filtered bulk
+    eigenvalues (not spacings); branch unused by current callers
+
     circular_period: float, optional
     Period used to include wraparound spacing for circular spectra
 
     Returns
-    ------
+    ----------
     ratio_mean: float
     Mean adjacent level spacing ratio
     """
     num_eigenvalues: int = len(eigenvalues)
-    logging.debug("num_eigenvalues = %d" % (num_eigenvalues,))
+    _logger.debug("num_eigenvalues = %d" % (num_eigenvalues,))
 
     ix_start = int(fraction_cutoff * num_eigenvalues)
-    ix_end = int((1.0 - fraction_cutoff) * num_eigenvalues) + 1
+    ix_end = int((1.0 - fraction_cutoff) * num_eigenvalues)
 
-    logging.debug("ix_start = %d, ix_end = %g" % (ix_start, ix_end))
+    _logger.debug("ix_start = %d, ix_end = %g" % (ix_start, ix_end))
     eigenvalues_bulk = eigenvalues[ix_start: ix_end]
+
+    if len(eigenvalues_bulk) == 0:
+        raise ValueError(
+            "Computing adjacent level spacing ratios requires at least "
+            "3 bulk eigenvalues (2 spacings); got 0")
 
     if use_spacing:
         if circular_period is None:
             spacings: np.ndarray = np.diff(eigenvalues_bulk)
         else:
-            if len(eigenvalues_bulk) == 0:
-                return np.nan
             spacings = np.diff(np.concatenate((
                 eigenvalues_bulk,
                 [eigenvalues_bulk[0] + circular_period],
             )))
-        logging.debug("spacings = %s" % spacings)
+        _logger.debug("spacings = %s" % spacings)
     else:
         spacings: np.ndarray = eigenvalues_bulk[np.abs(eigenvalues_bulk) > 1e-12]
-        logging.debug("spacings = %s" % spacings)
+        _logger.debug("spacings = %s" % spacings)
+
+    if len(spacings) < 2:
+        raise ValueError(
+            "Computing adjacent level spacing ratios requires at least "
+            "3 bulk eigenvalues (2 spacings); got %d" % len(spacings))
 
     spacing_max: np.ndarray = \
         np.asarray([max(spacings[n], spacings[n + 1])
             for n in range(len(spacings) - 1)])
-    logging.debug("spacing_max = %s" % spacing_max)
+    _logger.debug("spacing_max = %s" % spacing_max)
+
+    if np.any(spacing_max == 0):
+        raise ValueError(
+            "Degenerate spectrum: zero adjacent spacing encountered; "
+            "spacing ratio undefined")
 
     spacing_min: np.ndarray = \
         np.asarray([min(spacings[n], spacings[n + 1])
             for n in range(len(spacings) - 1)])
-    logging.debug("spacing_min = %s" % spacing_min)
+    _logger.debug("spacing_min = %s" % spacing_min)
 
     ratios: np.ndarray = spacing_min / spacing_max
-    logging.debug("ratios = %s" % ratios)
+    _logger.debug("ratios = %s" % ratios)
 
     ratio_mean: float = np.nanmean(ratios)
-    logging.debug("ratio_mean = %g" % (ratio_mean))
+    _logger.debug("ratio_mean = %g" % (ratio_mean))
 
     return ratio_mean
-################################################################################

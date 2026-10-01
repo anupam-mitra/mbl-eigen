@@ -71,6 +71,11 @@ def build_pxp_hamiltonian(systemsize, Omega, Delta):
     qutip.Qobj
         Full-system PXP Hamiltonian.
     """
+    if systemsize < 2:
+        raise ValueError(
+            "build_pxp_hamiltonian requires systemsize >= 2 to form "
+            f"neighbour projectors (got systemsize={systemsize})"
+        )
     from qutip.qip.operations import expand_operator
 
     sigma0, sigmax, _, sigmaz = spin_operators()

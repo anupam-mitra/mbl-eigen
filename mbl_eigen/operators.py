@@ -2,7 +2,11 @@
 
 import numpy as np
 import qutip
-from qutip.qip.operations import expand_operator
+
+try:
+    from qutip.qip.operations import expand_operator
+except ImportError:
+    expand_operator = None
 
 
 def spin_operators():
@@ -39,6 +43,11 @@ def zero_operator(systemsize):
     qutip.Qobj
         Zero operator with the correct tensor-product structure.
     """
+    if expand_operator is None:
+        raise ImportError(
+            "expand_operator requires the optional 'qutip-qip' package "
+            "(install with: pip install qutip-qip)"
+        )
     return 0.0 * expand_operator(qutip.qeye(2), N=systemsize, targets=(0,))
 
 
@@ -109,6 +118,11 @@ def build_site_operator_array(operator, systemsize, *, normalize=False):
     numpy.ndarray of qutip.Qobj, shape (systemsize,)
         Full-system operator at each site.
     """
+    if expand_operator is None:
+        raise ImportError(
+            "expand_operator requires the optional 'qutip-qip' package "
+            "(install with: pip install qutip-qip)"
+        )
     op = operator / np.sqrt(1 << systemsize) if normalize else operator
     return np.asarray(
         [

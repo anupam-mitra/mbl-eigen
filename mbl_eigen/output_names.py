@@ -6,23 +6,25 @@ import numpy as np
 
 
 def qmbs_sfim_plot_name(systemsize, tduration, Vrr, Omega, Delta):
-    """Return a stable filename for the QMBS Ising (SFIM) eigenphase plot."""
-    return "qmbs_sfim_N=%02d_tduration=%g_Vrr=%g_Omega=%g_Delta=%g.pdf" % (
+    """Return a UUID-suffixed filename for the QMBS Ising (SFIM) eigenphase plot."""
+    return "qmbs_sfim_N=%02d_tduration=%g_Vrr=%g_Omega=%g_Delta=%g_%s.pdf" % (
         systemsize,
         tduration,
         Vrr,
         Omega,
         Delta,
+        uuid.uuid4(),
     )
 
 
 def qmbs_pxp_plot_name(systemsize, tduration, Omega, Delta):
-    """Return a stable filename for the QMBS PXP eigenphase plot."""
-    return "qmbs_pxp_N=%02d_tduration=%g_Omega=%g_Delta=%g.pdf" % (
+    """Return a UUID-suffixed filename for the QMBS PXP eigenphase plot."""
+    return "qmbs_pxp_N=%02d_tduration=%g_Omega=%g_Delta=%g_%s.pdf" % (
         systemsize,
         tduration,
         Omega,
         Delta,
+        uuid.uuid4(),
     )
 
 
@@ -78,10 +80,10 @@ def mbl_dynamics_plot_name(
 
 def mbl_qiskit_plot_name(
     systemsize, anglePolarPiMin, anglePolarPiMax, jIntMean, jIntStd,
-    bFieldMean, bFieldStd, backend, trotter_steps
+    bFieldMean, bFieldStd, backend, trotter_steps, kind="sim"
 ):
     """Return a UUID-suffixed filename for a Qiskit simulation plot."""
-    prefix = f"mbl_qiskit_sim_{backend}_tsteps={trotter_steps}"
+    prefix = "mbl_qiskit_%s_%s_tsteps=%s" % (kind, backend, trotter_steps)
     return _mbl_plot_name(
         prefix, systemsize, anglePolarPiMin, anglePolarPiMax,
         jIntMean, jIntStd, bFieldMean, bFieldStd,

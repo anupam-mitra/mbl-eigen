@@ -1,9 +1,14 @@
+import logging
 from dataclasses import dataclass
 
 import numpy as np
 import qutip
 import scipy.linalg
 
+
+_logger = logging.getLogger(__name__)
+
+_JAX_X64_INITIALIZED = False
 
 HERMITIAN_EIGEN_BACKENDS = ("qobj", "numpy", "scipy", "torch", "jax")
 GENERAL_EIGEN_BACKENDS = ("qobj",)
@@ -47,20 +52,18 @@ def solve_hermitian_eigenproblem(
         backend="qobj",
         device="auto",
         return_eigenvectors=True):
-    if backend not in HERMITIAN_EIGEN_BACKENDS:
-        raise ValueError(
-            "unsupported Hermitian eigen backend %r; expected one of %s"
-            % (backend, HERMITIAN_EIGEN_BACKENDS)
-        )
-
-    if device not in EIGENSOLVER_DEVICE_CHOICES:
-        raise ValueError(
-            "unsupported eigensolver device %r; expected one of %s"
-            % (device, EIGENSOLVER_DEVICE_CHOICES)
-        )
+    _validate_backend_and_device(backend, device, HERMITIAN_EIGEN_BACKENDS, "Hermitian")
 
     operator_qobj = _as_qobj_operator(operator)
     dims = operator_qobj.dims
+
+    operator_ndarray = np.asarray(operator_qobj.full(), dtype=np.complex128)
+    if not np.allclose(operator_ndarray, operator_ndarray.conj().T):
+        _logger.warning(
+            "non-Hermitian operator symmetrized for %s eigen backend", backend
+        )
+        operator_qobj = (operator_qobj + operator_qobj.dag()) / 2
+        operator_ndarray = np.asarray(operator_qobj.full(), dtype=np.complex128)
 
     if backend == "qobj":
         actual_device = _resolve_cpu_only_device(device, backend)
@@ -82,21 +85,27 @@ def solve_hermitian_eigenproblem(
             device=actual_device,
         )
 
-    operator_ndarray = np.asarray(operator_qobj.full(), dtype=np.complex128)
-
     if backend == "numpy":
         actual_device = _resolve_cpu_only_device(device, backend)
         if return_eigenvectors:
-            eigenvalues, eigenvectors_array = np.linalg.eigh(operator_ndarray)
+            eigenvalues, eigenvectors_array = _eigh_with_context(
+                np.linalg.eigh, operator_ndarray, backend
+            )
         else:
-            eigenvalues = np.linalg.eigvalsh(operator_ndarray)
+            eigenvalues = _eigh_with_context(
+                np.linalg.eigvalsh, operator_ndarray, backend
+            )
             eigenvectors_array = None
     elif backend == "scipy":
         actual_device = _resolve_cpu_only_device(device, backend)
         if return_eigenvectors:
-            eigenvalues, eigenvectors_array = scipy.linalg.eigh(operator_ndarray)
+            eigenvalues, eigenvectors_array = _eigh_with_context(
+                scipy.linalg.eigh, operator_ndarray, backend
+            )
         else:
-            eigenvalues = scipy.linalg.eigvalsh(operator_ndarray)
+            eigenvalues = _eigh_with_context(
+                scipy.linalg.eigvalsh, operator_ndarray, backend
+            )
             eigenvectors_array = None
     elif backend == "torch":
         eigenvalues, eigenvectors_array, actual_device = _torch_eigh(
@@ -126,17 +135,7 @@ def solve_general_eigenproblem(
         backend="qobj",
         device="auto",
         return_eigenvectors=True):
-    if backend not in GENERAL_EIGEN_BACKENDS:
-        raise ValueError(
-            "unsupported general eigen backend %r; expected one of %s"
-            % (backend, GENERAL_EIGEN_BACKENDS)
-        )
-
-    if device not in EIGENSOLVER_DEVICE_CHOICES:
-        raise ValueError(
-            "unsupported eigensolver device %r; expected one of %s"
-            % (device, EIGENSOLVER_DEVICE_CHOICES)
-        )
+    _validate_backend_and_device(backend, device, GENERAL_EIGEN_BACKENDS, "general")
 
     operator_qobj = _as_qobj_operator(operator)
     actual_device = _resolve_cpu_only_device(device, backend)
@@ -166,8 +165,38 @@ def _as_qobj_operator(operator):
     return qutip.Qobj(np.asarray(operator, dtype=np.complex128))
 
 
+def _validate_backend_and_device(backend, device, allowed_backends, label):
+    if backend not in allowed_backends:
+        raise ValueError(
+            "unsupported %s eigen backend %r; expected one of %s"
+            % (label, backend, allowed_backends)
+        )
+
+    if device not in EIGENSOLVER_DEVICE_CHOICES:
+        raise ValueError(
+            "unsupported eigensolver device %r; expected one of %s"
+            % (device, EIGENSOLVER_DEVICE_CHOICES)
+        )
+
+
+def _eigh_with_context(solver, operator, backend):
+    try:
+        return solver(operator)
+    except (np.linalg.LinAlgError, RuntimeError, ValueError) as exc:
+        raise np.linalg.LinAlgError(
+            "eigendecomposition failed: backend=%s dtype=%s dimension=%s (%s)"
+            % (backend, operator.dtype, operator.shape, exc)
+        ) from exc
+
+
 def _build_hermitian_result(eigenvalues, eigenvectors_array, backend, dims, device):
     eigenvalues = np.real_if_close(np.asarray(eigenvalues, dtype=np.complex128))
+    if np.iscomplexobj(eigenvalues) and np.abs(eigenvalues.imag).max() > 0:
+        raise ValueError(
+            "eigenvalues have non-negligible imaginary parts (max |imag|=%r) "
+            "for backend=%s; refusing to discard them"
+            % (np.abs(eigenvalues.imag).max(), backend)
+        )
     eigenvalues = np.asarray(eigenvalues, dtype=np.float64)
     order = np.argsort(eigenvalues)
     eigenvalues = eigenvalues[order]
@@ -199,9 +228,13 @@ def _torch_eigh(operator_ndarray, device, return_eigenvectors):
         device=torch.device(actual_device),
     )
     if return_eigenvectors:
-        eigenvalues, eigenvectors = torch.linalg.eigh(operator_tensor)
+        eigenvalues, eigenvectors = _eigh_with_context(
+            torch.linalg.eigh, operator_tensor, "torch"
+        )
     else:
-        eigenvalues = torch.linalg.eigvalsh(operator_tensor)
+        eigenvalues = _eigh_with_context(
+            torch.linalg.eigvalsh, operator_tensor, "torch"
+        )
         eigenvectors = None
     _torch_synchronize(torch, actual_device)
 
@@ -221,16 +254,23 @@ def _jax_eigh(operator_ndarray, device, return_eigenvectors):
             "jax backend requires installing the optional 'jax' extra"
         ) from exc
 
-    jax.config.update("jax_enable_x64", True)
+    global _JAX_X64_INITIALIZED
+    if not _JAX_X64_INITIALIZED:
+        jax.config.update("jax_enable_x64", True)
+        _JAX_X64_INITIALIZED = True
     actual_device = _resolve_jax_device(jax, device)
     operator_array = jax.device_put(
         jnp.asarray(operator_ndarray, dtype=jnp.complex128),
         device=actual_device,
     )
     if return_eigenvectors:
-        eigenvalues, eigenvectors = jnp.linalg.eigh(operator_array)
+        eigenvalues, eigenvectors = _eigh_with_context(
+            jnp.linalg.eigh, operator_array, "jax"
+        )
     else:
-        eigenvalues = jnp.linalg.eigvalsh(operator_array)
+        eigenvalues = _eigh_with_context(
+            jnp.linalg.eigvalsh, operator_array, "jax"
+        )
         eigenvectors = None
     eigenvalues.block_until_ready()
     if eigenvectors is not None:
@@ -280,8 +320,6 @@ def _resolve_torch_device(torch, device):
 def _torch_synchronize(torch, device):
     if device == "cuda":
         torch.cuda.synchronize()
-    elif device == "mps" and hasattr(torch, "mps"):
-        torch.mps.synchronize()
 
 
 def _resolve_jax_device(jax, device):
