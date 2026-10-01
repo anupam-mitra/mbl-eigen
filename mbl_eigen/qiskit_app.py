@@ -2,7 +2,7 @@ import logging
 
 import numpy as np
 
-from .mbl_app import _rng_from_args, time_grid
+from .mbl_app import _mbl_model_title, _rng_from_args, time_grid
 from .mbl_model import build_mbl_model
 from .output_names import mbl_qiskit_plot_name
 from .plotting import plot_magnetization_z, plot_return_rate
@@ -66,11 +66,18 @@ def run_mbl_qiskit(args):
         trotter_steps=args.trotterSteps,
     )
 
+    qiskit_title = "MBL qiskit (%s, tsteps=%s): %s" % (
+        args.simBackend,
+        args.trotterSteps,
+        _mbl_model_title(args),
+    )
+
     plot_return_rate(
         times=result.times,
         amplitudes=np.sqrt(result.return_rate),
         systemsize=args.systemsize,
         filename=ret_rate_file,
+        title=qiskit_title,
     )
     logger.info("Saved return rate plot to %s", ret_rate_file)
 
@@ -78,5 +85,6 @@ def run_mbl_qiskit(args):
         times=result.times,
         magnetization_z=result.magnetization_z,
         filename=mag_file,
+        title=qiskit_title,
     )
     logger.info("Saved magnetization plot to %s", mag_file)

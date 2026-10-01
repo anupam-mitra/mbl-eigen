@@ -90,3 +90,18 @@ def calc_mean_adjacent_level_spacing_ratio(
     _logger.debug("ratio_mean = %g" % (ratio_mean))
 
     return ratio_mean
+
+
+def calc_mean_adjacent_level_spacing_ratio_lenient(*args, **kwargs) -> float:
+    """Compute the mean spacing ratio, mapping degenerate input to NaN.
+
+    Wraps ``calc_mean_adjacent_level_spacing_ratio``: inputs rejected by
+    that function (fewer than three bulk eigenvalues, degenerate
+    spectrum) log a warning and yield ``nan`` instead of raising, so
+    workflows can continue past degenerate models.
+    """
+    try:
+        return calc_mean_adjacent_level_spacing_ratio(*args, **kwargs)
+    except ValueError as exc:
+        _logger.warning("level-spacing ratio undefined: %s", exc)
+        return float("nan")

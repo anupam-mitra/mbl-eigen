@@ -5,9 +5,11 @@ import logging
 import numpy as np
 
 from . import eigensolver
-from . import level_repulsion
 from . import output_names
 from .eigenphase import eigenvalues_to_unitary, extract_sorted_eigenphases
+from .level_repulsion import (
+    calc_mean_adjacent_level_spacing_ratio_lenient as _spacing_ratio,
+)
 from .plotting import plot_eigenphases_unit_circle
 from .qmbs_model import build_pxp_hamiltonian, build_qmbs_ising_hamiltonian
 
@@ -62,19 +64,19 @@ def run_qmbs(args, rng=None):
     eigenphases = extract_sorted_eigenphases(eigenvalues_unitary)
     eigenphases_pxp = extract_sorted_eigenphases(eigenvalues_pxp_unitary)
 
-    energy_ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
+    energy_ratio = _spacing_ratio(
         eigenvalues, fraction_cutoff=0.0, use_spacing=True
     )
-    energy_ratio_pxp = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
+    energy_ratio_pxp = _spacing_ratio(
         eigenvalues_pxp, fraction_cutoff=0.0, use_spacing=True
     )
-    phase_ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
+    phase_ratio = _spacing_ratio(
         eigenphases,
         fraction_cutoff=0.0,
         use_spacing=True,
         circular_period=2.0 * np.pi,
     )
-    phase_ratio_pxp = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
+    phase_ratio_pxp = _spacing_ratio(
         eigenphases_pxp,
         fraction_cutoff=0.0,
         use_spacing=True,
@@ -94,6 +96,14 @@ def run_qmbs(args, rng=None):
             Omega=_OMEGA,
             Delta=delta,
         ),
+        title=r"QMBS Ising: $N=%d$, $t=%g$, $\Omega=%g$, $\Delta=%g$, "
+              r"$V_{\mathrm{rr}}=%g$" % (
+            systemsize,
+            tduration,
+            _OMEGA,
+            delta,
+            _VRR,
+        ),
     )
     plot_eigenphases_unit_circle(
         eigenvalues_pxp_unitary,
@@ -102,6 +112,12 @@ def run_qmbs(args, rng=None):
             tduration=tduration,
             Omega=_OMEGA,
             Delta=delta,
+        ),
+        title=r"PXP: $N=%d$, $t=%g$, $\Omega=%g$, $\Delta=%g$" % (
+            systemsize,
+            tduration,
+            _OMEGA,
+            delta,
         ),
     )
 

@@ -6,9 +6,11 @@ import numpy as np
 import qutip
 
 from . import eigensolver
-from . import level_repulsion
 from . import output_names
 from .eigenphase import extract_sorted_eigenphases
+from .level_repulsion import (
+    calc_mean_adjacent_level_spacing_ratio_lenient as _spacing_ratio,
+)
 from .mbl_app import _rng_from_args
 from .operators import spin_operators, zero_operator
 from .plotting import plot_eigenphases_unit_circle
@@ -64,7 +66,7 @@ def run_mbldtc(args, rng=None):
     )
     eigenvalues = diag.eigenvalues
     eigenphases = extract_sorted_eigenphases(eigenvalues)
-    ratio = level_repulsion.calc_mean_adjacent_level_spacing_ratio(
+    ratio = _spacing_ratio(
         eigenphases,
         fraction_cutoff=0.0,
         use_spacing=True,
@@ -79,6 +81,7 @@ def run_mbldtc(args, rng=None):
     plot_eigenphases_unit_circle(
         eigenvalues,
         output_names.mbldtc_plot_name(systemsize=systemsize, theta_x=theta_x),
+        title=r"MBL-DTC: $N=%d$, $\theta_x=%g\pi$" % (systemsize, args.thetaXPi),
     )
 
 

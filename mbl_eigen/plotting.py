@@ -11,7 +11,9 @@ _SQUARE_FIGSIZE = (12.0 / 2.54, 12.0 / 2.54)
 _WIDE_FIGSIZE = (18.0 / 2.54, 12.0 / 2.54)
 
 
-def plot_eigenphases_unit_circle(eigenvalues_unitary, filename, *, figsize=None):
+def plot_eigenphases_unit_circle(
+    eigenvalues_unitary, filename, *, title=None, figsize=None
+):
     """Plot complex eigenvalues and their conjugates on the unit circle.
 
     Saves a PDF to *filename* and closes the figure.
@@ -22,6 +24,8 @@ def plot_eigenphases_unit_circle(eigenvalues_unitary, filename, *, figsize=None)
         Eigenvalues lying on (or near) the complex unit circle.
     filename : str
         Output path (typically a ``.pdf`` file).
+    title : str, optional
+        Plot title (typically the model parameters).
     figsize : tuple of float, optional
         ``(width, height)`` in inches.  Defaults to a 12×12 cm square.
     """
@@ -32,6 +36,8 @@ def plot_eigenphases_unit_circle(eigenvalues_unitary, filename, *, figsize=None)
     im = np.imag(eigenvalues_unitary)
 
     fig, ax = plt.subplots(1, 1, figsize=figsize)
+    if title is not None:
+        ax.set_title(title, fontsize=9)
     ax.set_xlabel(r"$\mathrm{Re}(\eta)$")
     ax.set_ylabel(r"$\mathrm{Im}(\eta)$")
 
@@ -53,7 +59,7 @@ def plot_eigenphases_unit_circle(eigenvalues_unitary, filename, *, figsize=None)
 
 
 def plot_eigenvector_entropy(
-    eigenvalues, entropies, page_entropy, filename, *, figsize=None
+    eigenvalues, entropies, page_entropy, filename, *, title=None, figsize=None
 ):
     """Plot half-chain von Neumann entanglement entropy vs energy.
 
@@ -69,6 +75,8 @@ def plot_eigenvector_entropy(
         Expected Page-limit entropy; drawn as a horizontal dotted line.
     filename : str
         Output path.
+    title : str, optional
+        Plot title (typically the model parameters).
     figsize : tuple of float, optional
         ``(width, height)`` in inches.  Defaults to 18×12 cm.
     """
@@ -76,6 +84,8 @@ def plot_eigenvector_entropy(
         figsize = _WIDE_FIGSIZE
 
     fig, ax = plt.subplots(1, 1, figsize=figsize)
+    if title is not None:
+        ax.set_title(title, fontsize=9)
     ax.set_xlabel(r"Energy")
     ax.set_ylabel(r"$\mathcal{S}_1$")
 
@@ -99,7 +109,9 @@ def plot_eigenvector_entropy(
         plt.close(fig)
 
 
-def plot_return_rate(times, amplitudes, systemsize, filename, *, figsize=None):
+def plot_return_rate(
+    times, amplitudes, systemsize, filename, *, title=None, figsize=None
+):
     """Plot the normalised return rate  λ(t) = −log|A(t)|² / N  vs time.
 
     Amplitudes are floored at ``1e-300`` before the logarithm so that
@@ -117,6 +129,8 @@ def plot_return_rate(times, amplitudes, systemsize, filename, *, figsize=None):
         Number of sites (used for normalisation).
     filename : str
         Output path.
+    title : str, optional
+        Plot title (typically the model parameters).
     figsize : tuple of float, optional
         ``(width, height)`` in inches.  Defaults to 18×12 cm.
     """
@@ -124,6 +138,8 @@ def plot_return_rate(times, amplitudes, systemsize, filename, *, figsize=None):
         figsize = _WIDE_FIGSIZE
 
     fig, ax = plt.subplots(1, 1, figsize=figsize)
+    if title is not None:
+        ax.set_title(title, fontsize=9)
     probs = np.maximum(np.abs(amplitudes) ** 2, 1e-300)
     ax.plot(times, -np.log(probs) / systemsize)
     ax.set_ylabel(r"$\lambda(t)$")
@@ -139,7 +155,9 @@ def plot_return_rate(times, amplitudes, systemsize, filename, *, figsize=None):
         plt.close(fig)
 
 
-def plot_magnetization_z(times, magnetization_z, filename, *, figsize=None):
+def plot_magnetization_z(
+    times, magnetization_z, filename, *, title=None, figsize=None
+):
     """Plot site-resolved ⟨Z_i⟩(t) vs time.
 
     Saves a PDF to *filename* and closes the figure.
@@ -152,6 +170,8 @@ def plot_magnetization_z(times, magnetization_z, filename, *, figsize=None):
         Site-resolved magnetization ``(N, T)``.
     filename : str
         Output path.
+    title : str, optional
+        Plot title (typically the model parameters).
     figsize : tuple of float, optional
         ``(width, height)`` in inches.  Defaults to 18×12 cm.
     """
@@ -159,6 +179,8 @@ def plot_magnetization_z(times, magnetization_z, filename, *, figsize=None):
         figsize = _WIDE_FIGSIZE
 
     fig, ax = plt.subplots(1, 1, figsize=figsize)
+    if title is not None:
+        ax.set_title(title, fontsize=9)
 
     systemsize = magnetization_z.shape[0]
     for i in range(systemsize):

@@ -44,6 +44,21 @@ def _build_model_from_args(args, rng=None):
     )
 
 
+def _mbl_model_title(args):
+    return (
+        r"$N=%d$, $\theta=[%g, %g]\pi$, $J=%g\pm%g$, $B=%g\pm%g$"
+        % (
+            args.systemsize,
+            args.anglePolarPiMin,
+            args.anglePolarPiMax,
+            args.jIntMean,
+            args.jIntStd,
+            args.bFieldMean,
+            args.bFieldStd,
+        )
+    )
+
+
 def _build_and_diagonalize(args, rng=None):
     model = _build_model_from_args(args, _rng_from_args(args, rng))
     logger.info("bField_samples = %s", model.bField_samples)
@@ -99,6 +114,7 @@ def run_mbl(args, rng=None):
             bFieldMean=args.bFieldMean,
             bFieldStd=args.bFieldStd,
         ),
+        title="MBL model: " + _mbl_model_title(args),
     )
 
 
@@ -127,6 +143,7 @@ def run_mbl_dynamics(args, rng=None):
             bFieldMean=args.bFieldMean,
             bFieldStd=args.bFieldStd,
         ),
+        title="MBL model: " + _mbl_model_title(args),
     )
 
 
