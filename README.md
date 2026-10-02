@@ -150,10 +150,11 @@ python3 main_qmbs.py --systemsize=6 --tduration=1.0 --Delta=0.1 --eigenBackend=t
 
 `main_qmbs.py` always writes two PDF files:
 
-- `qmbs_sfim_N=%02d_tduration=%g_Vrr=%g_Omega=%g_Delta=%g.pdf`
-- `qmbs_pxp_N=%02d_tduration=%g_Omega=%g_Delta=%g.pdf`
+- `qmbs_sfim_N=%02d_tduration=%g_Vrr=%g_Omega=%g_Delta=%g_<uuid>.pdf`
+- `qmbs_pxp_N=%02d_tduration=%g_Omega=%g_Delta=%g_<uuid>.pdf`
 
-These names are stable for identical inputs because they do not include a UUID.
+Each filename includes a random UUID suffix, so repeated runs intentionally
+produce different filenames.
 
 ### Implementation Notes
 

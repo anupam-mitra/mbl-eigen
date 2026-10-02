@@ -16,6 +16,12 @@ def plot_eigenphases_unit_circle(
 ):
     """Plot complex eigenvalues and their conjugates on the unit circle.
 
+    The second marker set is the reflection of the eigenvalues across the
+    real axis (``eta*``), not a phase-``pi`` partner (``-eta``).  The
+    reflected points are genuine eigenvalues only when the model has an
+    ``E -> -E`` spectral symmetry (e.g. the PXP model at zero detuning);
+    otherwise they are a visual guide.
+
     Saves a PDF to *filename* and closes the figure.
 
     Parameters
