@@ -437,7 +437,7 @@ model = build_mbl_model(
 mbl_circuit = build_mbl_trotter_circuit_from_model(
     model,
     time=0.5,
-    trotter_steps=4,
+    n_steps=4,
 )
 
 phi_z, phi_zz = sample_mbldtc_angles(systemsize=4)

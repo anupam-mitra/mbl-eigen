@@ -232,6 +232,11 @@ def build_qiskit_sim_parser():
     argument_parser.add_argument(
         "--trotterSteps", type=_integer_at_least(1), default=10)
     argument_parser.add_argument("--trotterOrder", type=int, choices=[1, 2], default=2)
+    argument_parser.add_argument(
+        "--workflow", choices=["mbl", "dtc"], default="mbl")
+    argument_parser.add_argument(
+        "--thetaXPi", type=_finite_float, default=None)
+    argument_parser.add_argument("--insertBarriers", action="store_true")
 
     return argument_parser
 
@@ -289,6 +294,26 @@ def main_mbl_propagator():
 
 
 def main_qiskit_sim():
-    from .qiskit_app import run_mbl_qiskit
+    from .qiskit_app import run_mbldtc_qiskit, run_mbl_qiskit
 
-    _dispatch(run_mbl_qiskit, build_qiskit_sim_parser().parse_args())
+    parser = build_qiskit_sim_parser()
+    args = parser.parse_args()
+
+    if args.workflow == "dtc":
+        if args.shots is not None:
+            parser.error("dtc workflow takes no shots (exact statevector)")
+        if args.simBackend != "statevector":
+            parser.error(
+                "dtc workflow runs exact statevector; "
+                "simBackend must be statevector"
+            )
+        if args.thetaXPi is None:
+            parser.error("dtc workflow requires --thetaXPi")
+    else:
+        if args.simBackend == "statevector" and args.shots is not None:
+            parser.error("shots requires simBackend aer or fake_backend")
+        if args.simBackend == "fake_backend" and args.shots is None:
+            parser.error("fake_backend requires --shots")
+
+    run = run_mbldtc_qiskit if args.workflow == "dtc" else run_mbl_qiskit
+    _dispatch(run, args)

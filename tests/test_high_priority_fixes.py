@@ -1,6 +1,8 @@
 import contextlib
 import io
+import sys
 import unittest
+from unittest import mock
 
 import numpy as np
 import qutip
@@ -10,6 +12,7 @@ from mbl_eigen.cli import build_mbldtc_parser
 from mbl_eigen.cli import build_mbl_parser
 from mbl_eigen.cli import build_qiskit_sim_parser
 from mbl_eigen.cli import build_qmbs_parser
+from mbl_eigen.cli import main_qiskit_sim
 from mbl_eigen.eigensolver import solve_general_eigenproblem
 from mbl_eigen.eigensolver import solve_hermitian_eigenproblem
 from mbl_eigen.eigensolver import _resolve_jax_device
@@ -21,6 +24,7 @@ from mbl_eigen.mbl_model import sample_mbl_disorder
 from mbl_eigen.mbl_model import spin_operators
 from mbl_eigen.qiskit_propagators import sample_mbldtc_angles
 from mbl_eigen.reflection import reflection_about_center
+from mbl_eigen.qiskit_simulation import _ShotProxy
 from mbl_eigen.qiskit_simulation import run_mbl_qiskit_simulation
 
 
@@ -124,11 +128,106 @@ class HighPriorityFixTests(unittest.TestCase):
             "--bFieldStd", "1",
             "--anglePolarPiMin", "0",
             "--anglePolarPiMax", "1",
+            "--simBackend", "aer",
             "--shots", "16",
             "--trotterSteps", "4",
         ])
         self.assertEqual(args.shots, 16)
         self.assertEqual(args.trotterSteps, 4)
+        self.assertEqual(args.simBackend, "aer")
+
+    def test_qiskit_sim_parser_accepts_backend_and_order_choices(self):
+        parser = build_qiskit_sim_parser()
+        base = [
+            "--systemsize", "1",
+            "--tduration", "1",
+            "--jIntMean", "1",
+            "--bFieldMean", "1",
+            "--jIntStd", "1",
+            "--bFieldStd", "1",
+            "--anglePolarPiMin", "0",
+            "--anglePolarPiMax", "1",
+        ]
+        args = parser.parse_args(
+            base + ["--simBackend", "aer", "--trotterOrder", "1"])
+        self.assertEqual(args.simBackend, "aer")
+        self.assertEqual(args.trotterOrder, 1)
+        self.assertEqual(args.fakeBackend, "FakeManilaV2")
+        defaults = parser.parse_args(base)
+        self.assertEqual(defaults.simBackend, "statevector")
+        self.assertEqual(defaults.trotterOrder, 2)
+        self.assertEqual(defaults.fakeBackend, "FakeManilaV2")
+
+    def test_qiskit_sim_parser_rejects_bad_backend_and_order(self):
+        parser = build_qiskit_sim_parser()
+        base = [
+            "--systemsize", "1",
+            "--tduration", "1",
+            "--jIntMean", "1",
+            "--bFieldMean", "1",
+            "--jIntStd", "1",
+            "--bFieldStd", "1",
+            "--anglePolarPiMin", "0",
+            "--anglePolarPiMax", "1",
+        ]
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                parser.parse_args(base + ["--simBackend", "pseudo"])
+            with self.assertRaises(SystemExit):
+                parser.parse_args(base + ["--trotterOrder", "3"])
+
+    def test_main_qiskit_sim_rejects_inconsistent_dtc_configs(self):
+        base = [
+            "--systemsize", "1",
+            "--tduration", "1",
+            "--jIntMean", "1",
+            "--bFieldMean", "1",
+            "--jIntStd", "1",
+            "--bFieldStd", "1",
+            "--anglePolarPiMin", "0",
+            "--anglePolarPiMax", "1",
+        ]
+        with contextlib.redirect_stderr(io.StringIO()):
+            with mock.patch.object(
+                    sys, "argv", ["prog"] + base + ["--workflow", "dtc"]):
+                with self.assertRaises(SystemExit):
+                    main_qiskit_sim()
+        with contextlib.redirect_stderr(io.StringIO()):
+            with mock.patch.object(
+                    sys, "argv",
+                    ["prog"] + base + [
+                        "--workflow", "dtc",
+                        "--thetaXPi", "0.76",
+                        "--simBackend", "fake_backend",
+                        "--shots", "16",
+                    ]):
+                with self.assertRaises(SystemExit):
+                    main_qiskit_sim()
+
+    def test_main_qiskit_sim_rejects_inconsistent_shot_configs(self):
+        base = [
+            "--systemsize", "1",
+            "--tduration", "1",
+            "--jIntMean", "1",
+            "--bFieldMean", "1",
+            "--jIntStd", "1",
+            "--bFieldStd", "1",
+            "--anglePolarPiMin", "0",
+            "--anglePolarPiMax", "1",
+        ]
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            with mock.patch.object(
+                    sys, "argv", ["prog"] + base + ["--shots", "16"]):
+                with self.assertRaises(SystemExit):
+                    main_qiskit_sim()
+        self.assertIn("shots", stderr.getvalue())
+        with contextlib.redirect_stderr(io.StringIO()):
+            with mock.patch.object(
+                    sys, "argv",
+                    ["prog"] + base + ["--simBackend", "fake_backend"]):
+                with self.assertRaises(SystemExit):
+                    main_qiskit_sim()
 
     def test_single_site_reflection_is_identity(self):
         swap = qutip.tensor(qutip.qeye(2), qutip.qeye(2))
@@ -339,6 +438,16 @@ except ImportError:
     build_mbldtc_floquet_circuit = None
     build_mbl_trotter_circuit = None
 
+try:
+    from qiskit_aer import AerSimulator
+except ImportError:
+    AerSimulator = None
+
+try:
+    from qiskit_ibm_runtime.fake_provider import FakeManilaV2
+except ImportError:
+    FakeManilaV2 = None
+
 
 @unittest.skipIf(Operator is None, "Qiskit extra is not installed")
 class QiskitOrderingTests(unittest.TestCase):
@@ -364,7 +473,7 @@ class QiskitOrderingTests(unittest.TestCase):
             b_field,
             theta,
             time,
-            trotter_steps=100,
+            n_steps=100,
         )
 
         qiskit_operator = Operator(circuit).data
@@ -374,6 +483,36 @@ class QiskitOrderingTests(unittest.TestCase):
             np.linalg.norm(qiskit_operator - quutip_operator),
             1.0e-6,
         )
+
+    def test_mbl_trotter_order1_accuracy_ordering(self):
+        rng = np.random.default_rng(42)
+        systemsize = 2
+        j_int = rng.uniform(-1.0, 1.0, size=systemsize - 1)
+        b_field = rng.uniform(0.5, 1.5, size=systemsize)
+        theta = rng.uniform(0.1, 0.9, size=systemsize)
+        time = 0.01
+
+        _, sigmax, _, sigmaz = spin_operators()
+        hamiltonian = build_mbl_hamiltonian(
+            systemsize,
+            j_int,
+            b_field,
+            theta,
+            sigmax,
+            sigmaz,
+        )
+        exact = (-1j * hamiltonian * time).expm().full()
+
+        common = (systemsize, j_int, b_field, theta, time)
+        order1 = Operator(build_mbl_trotter_circuit(
+            *common, n_steps=1, trotter_order=1)).data
+        order2 = Operator(build_mbl_trotter_circuit(
+            *common, n_steps=1, trotter_order=2)).data
+
+        error1 = np.linalg.norm(order1 - exact)
+        error2 = np.linalg.norm(order2 - exact)
+        self.assertLess(error1, 1.0e-2)
+        self.assertLess(error2, error1)
 
     def test_qiskit_rejects_invalid_real_inputs(self):
         common = dict(
@@ -472,7 +611,7 @@ class QiskitSimulationTests(unittest.TestCase):
         result = run_mbl_qiskit_simulation(
             self.model,
             np.array([0.0, 0.1]),
-            trotter_steps=2,
+            steps_per_unit_time=2,
             backend="statevector",
         )
         self.assertEqual(result.return_rate.shape, (2,))
@@ -500,7 +639,7 @@ class QiskitSimulationTests(unittest.TestCase):
         result = run_mbl_qiskit_simulation(
             model,
             np.array([0.0, time]),
-            trotter_steps=200,
+            steps_per_unit_time=200,
             backend="statevector",
         )
 
@@ -516,6 +655,45 @@ class QiskitSimulationTests(unittest.TestCase):
             self.assertAlmostEqual(
                 result.magnetization_z[ix_site, 1], expected, places=3)
 
+    def test_statevector_multi_interval_evolution_matches_expm(self):
+        model = build_mbl_model(
+            systemsize=2,
+            jIntMean=0.5,
+            jIntStd=0.0,
+            bFieldMean=1.0,
+            bFieldStd=0.5,
+            anglePolarPiMin=0.1,
+            anglePolarPiMax=0.1,
+            rng=np.random.default_rng(11),
+        )
+        j_int = np.asarray(model.jInt_samples)
+        b_field = np.asarray(model.bField_samples)
+        theta = np.asarray(model.theta_samples)
+
+        times = np.linspace(0.0, 0.3, 4)
+        result = run_mbl_qiskit_simulation(
+            model,
+            times,
+            steps_per_unit_time=200,
+            backend="statevector",
+        )
+        self.assertTrue(np.isfinite(result.return_rate).all())
+        self.assertTrue(
+            ((result.return_rate >= 0.0) & (result.return_rate <= 1.0)).all())
+
+        time = times[-1]
+        _, sigmax, _, sigmaz = spin_operators()
+        hamiltonian = build_mbl_hamiltonian(
+            2, j_int, b_field, theta, sigmax, sigmaz)
+        psi0 = qutip.tensor(qutip.basis(2, 1), qutip.basis(2, 1))
+        psi = (-1j * hamiltonian * time).expm() * psi0
+        from qutip.qip.operations import expand_operator
+        for ix_site in range(2):
+            z_site = expand_operator(sigmaz, 2, targets=(ix_site,))
+            expected = qutip.expect(z_site, psi)
+            self.assertAlmostEqual(
+                result.magnetization_z[ix_site, -1], expected, places=3)
+
     def test_simulation_rejects_invalid_time_and_shot_inputs(self):
         with self.assertRaisesRegex(ValueError, "must not be empty"):
             run_mbl_qiskit_simulation(self.model, [], backend="statevector")
@@ -525,6 +703,79 @@ class QiskitSimulationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "only supported"):
             run_mbl_qiskit_simulation(
                 self.model, [0.0], backend="statevector", shots=1)
+
+    @unittest.skipIf(
+        AerSimulator is None, "qiskit-aer is not installed")
+    def test_aer_shot_simulation_returns_bounded_observables(self):
+        result = run_mbl_qiskit_simulation(
+            self.model,
+            np.array([0.0, 0.1]),
+            backend="aer",
+            shots=64,
+        )
+        self.assertEqual(result.backend, "aer")
+        self.assertEqual(result.shots, 64)
+        self.assertEqual(result.magnetization_z.shape, (1, 2))
+        self.assertTrue(np.isfinite(result.return_rate).all())
+        self.assertTrue(np.isfinite(result.magnetization_z).all())
+        self.assertTrue(
+            ((result.return_rate >= 0.0) & (result.return_rate <= 1.0)).all())
+
+    @unittest.skipIf(
+        AerSimulator is None, "qiskit-aer is not installed")
+    @unittest.skipIf(
+        FakeManilaV2 is None, "qiskit fake provider is not installed")
+    def test_fake_backend_rejects_more_qubits_than_device(self):
+        model = build_mbl_model(
+            systemsize=6,
+            jIntMean=1.0,
+            jIntStd=0.0,
+            bFieldMean=1.0,
+            bFieldStd=0.0,
+            anglePolarPiMin=0.0,
+            anglePolarPiMax=1.0,
+            rng=np.random.default_rng(7),
+        )
+        with self.assertRaisesRegex(ValueError, "qubits"):
+            run_mbl_qiskit_simulation(
+                model,
+                np.array([0.0, 0.1]),
+                backend="fake_backend",
+                shots=64,
+            )
+
+    @unittest.skipIf(
+        AerSimulator is None, "qiskit-aer is not installed")
+    def test_aer_exact_mode_matches_statevector_at_zero_time(self):
+        result = run_mbl_qiskit_simulation(
+            self.model,
+            np.array([0.0, 0.1]),
+            backend="aer",
+        )
+        self.assertIsNone(result.shots)
+        self.assertAlmostEqual(result.return_rate[0], 1.0)
+        self.assertAlmostEqual(result.magnetization_z[0, 0], -1.0)
+
+
+class ShotProxyTests(unittest.TestCase):
+    def test_prob_handles_exact_spaced_and_missing_keys(self):
+        proxy = _ShotProxy({"11 00": 40, "10 10": 60}, 4, 100)
+        self.assertAlmostEqual(proxy.prob("1100"), 0.4)
+        self.assertAlmostEqual(proxy.prob("11 00"), 0.4)
+        self.assertAlmostEqual(proxy.prob("1010"), 0.6)
+        self.assertAlmostEqual(proxy.prob("0000"), 0.0)
+
+    def test_magnetization_z_reverses_big_endian_count_keys(self):
+        all_ones = _ShotProxy({"11": 100}, 2, 100)
+        np.testing.assert_allclose(all_ones.magnetization_z(2), [-1.0, -1.0])
+        all_zeros = _ShotProxy({"00": 100}, 2, 100)
+        np.testing.assert_allclose(all_zeros.magnetization_z(2), [1.0, 1.0])
+        mixed = _ShotProxy({"01": 25, "10": 75}, 2, 100)
+        np.testing.assert_allclose(mixed.magnetization_z(2), [-0.5, 0.5])
+
+    def test_magnetization_z_handles_missing_trailing_bits(self):
+        proxy = _ShotProxy({"1": 10}, 2, 10)
+        np.testing.assert_allclose(proxy.magnetization_z(2), [1.0, -1.0])
 
 
 if __name__ == "__main__":

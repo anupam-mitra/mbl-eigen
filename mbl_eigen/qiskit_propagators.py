@@ -89,6 +89,13 @@ def build_mbl_trotter_step_circuit(
 
     The diagonal Z/ZZ sector is implemented with ``rz`` and ``rzz`` gates, and
     the transverse X sector is implemented with ``rx`` gates.
+
+    Notes
+    -----
+    ``time_step`` is the per-step evolution time ``dt``. First-order Suzuki
+    (``trotter_order=1``) has local error O(dt**2) and global error O(t * dt);
+    second-order (``trotter_order=2``) has local error O(dt**3) and global
+    error O(t * dt**2).
     """
     _validate_systemsize(systemsize)
     _validate_trotter_order(trotter_order)
@@ -129,12 +136,18 @@ def build_mbl_trotter_circuit(
         bField_samples,
         theta_samples,
         time,
-        trotter_steps=1,
+        n_steps=1,
         trotter_order=2,
         insert_barriers=False):
-    """Build a Trotterized Qiskit circuit for the MBL time-evolution operator."""
+    """Build a Trotterized Qiskit circuit for the MBL time-evolution operator.
+
+    ``n_steps`` is the total number of Trotter steps dividing ``time``:
+    ``time_step = time / n_steps``. With ``dt = time / n_steps``, first-order
+    Suzuki has local error O(dt**2) and global error O(t * dt); second-order
+    has local error O(dt**3) and global error O(t * dt**2).
+    """
     _validate_systemsize(systemsize)
-    _validate_positive_integer(trotter_steps, "trotter_steps")
+    _validate_positive_integer(n_steps, "n_steps")
     _validate_trotter_order(trotter_order)
     time = _as_finite_real(time, "time")
     jInt_samples = _as_real_vector(jInt_samples, systemsize - 1, "jInt_samples")
@@ -143,9 +156,9 @@ def build_mbl_trotter_circuit(
 
     QuantumCircuit = _require_quantum_circuit()
     circuit = QuantumCircuit(systemsize, name="mbl_time_evolution")
-    time_step = time / trotter_steps
+    time_step = time / n_steps
 
-    for ix_step in range(trotter_steps):
+    for ix_step in range(n_steps):
         step_circuit = build_mbl_trotter_step_circuit(
             systemsize=systemsize,
             jInt_samples=jInt_samples,
@@ -156,7 +169,7 @@ def build_mbl_trotter_circuit(
             insert_barriers=insert_barriers,
         )
         circuit.compose(step_circuit, inplace=True)
-        if insert_barriers and ix_step != trotter_steps - 1:
+        if insert_barriers and ix_step != n_steps - 1:
             circuit.barrier()
 
     return circuit
@@ -165,10 +178,14 @@ def build_mbl_trotter_circuit(
 def build_mbl_trotter_circuit_from_model(
         model,
         time,
-        trotter_steps=1,
+        n_steps=1,
         trotter_order=2,
         insert_barriers=False):
-    """Build a Trotterized MBL circuit directly from ``MBLModel`` samples."""
+    """Build a Trotterized MBL circuit directly from ``MBLModel`` samples.
+
+    ``n_steps`` is the total number of Trotter steps dividing ``time``:
+    ``time_step = time / n_steps``.
+    """
     systemsize = len(model.bField_samples)
     return build_mbl_trotter_circuit(
         systemsize=systemsize,
@@ -176,7 +193,7 @@ def build_mbl_trotter_circuit_from_model(
         bField_samples=model.bField_samples,
         theta_samples=model.theta_samples,
         time=time,
-        trotter_steps=trotter_steps,
+        n_steps=n_steps,
         trotter_order=trotter_order,
         insert_barriers=insert_barriers,
     )
